@@ -1,0 +1,37 @@
+═══════════════════════════════════════════════════════
+  Unified Disaster Response System — Run Instructions
+═══════════════════════════════════════════════════════
+
+── Run (one terminal, all 3 models) ────────────────────
+
+  cd ~/Desktop/sdp
+  conda activate crisismmd
+  uvicorn fusion.server:app --host 0.0.0.0 --port 8001 --reload
+
+  Open → http://localhost:8001
+
+  On startup the server loads:
+    [1] AdaptiveIoTClassifier   ← IOT/models/iot_model.pth
+    [2] BLIP + XLM-RoBERTa      ← crisis/best_adaptive_model.pth
+    [3] FusionLayer             ← fusion/fusion_model.pth
+
+── API Endpoints ────────────────────────────────────────
+
+  GET  /           → dashboard UI
+  GET  /health     → model load status
+  POST /analyze    → full pipeline (image + tweet + optional IoT sensors)
+  POST /iot/predict → IoT-only prediction
+
+── (Re)Train models ─────────────────────────────────────
+
+  # IoT model (already trained — skip unless retraining)
+  python IOT/train_iot.py
+
+  # Fusion layer (run after IoT model)
+  python fusion/train_fusion.py
+
+  # Evaluation graphs + metrics.json (conference paper)
+  python IOT/evaluate_iot.py
+  → IOT/evaluation/
+
+═══════════════════════════════════════════════════════
