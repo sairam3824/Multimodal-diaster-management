@@ -4,9 +4,8 @@
 
 ── Run (one terminal, all 3 models) ────────────────────
 
-  cd ~/Desktop/sdp
-  conda activate crisismmd
-  uvicorn fusion.server:app --host 0.0.0.0 --port 8001 --reload
+conda activate crisismmd
+python -m uvicorn fusion.server:app --host 0.0.0.0 --port 8001 --reload
 
   Open → http://localhost:8001
 
