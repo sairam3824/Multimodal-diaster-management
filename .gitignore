@@ -81,6 +81,5 @@ crisis/Dataset/
 .vscode/
 
 # Project-specific: Evaluation & Logs
-IOT/evaluation/
 *.log
 metrics.json
