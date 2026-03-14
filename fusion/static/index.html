@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Multimodal Disaster Intelligence Platform</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#080b14; --bg2:#0d1120;
+  --surface:#111827; --surface2:#161d2e; --surface3:#1e2740;
+  --border:rgba(99,120,200,.18); --border2:rgba(99,120,200,.30);
+  --accent:#4f6ef7; --accent2:#7b93ff; --accent3:#a5b4fc;
+  --glow:rgba(79,110,247,.35);
+  --text:#e8edf8; --text2:#a8b4d0; --text3:#5f6e94;
+  --success:#34d399; --warn:#fbbf24; --danger:#f87171;
+  --fire:#fb923c; --storm:#60a5fa; --quake:#a78bfa; --flood:#34d399;
+  --radius:16px; --radius-sm:10px; --nav-h:64px;
+}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse 80% 50% at 20% -10%,rgba(79,110,247,.12) 0%,transparent 60%),
+             radial-gradient(ellipse 60% 40% at 80% 110%,rgba(99,60,200,.10) 0%,transparent 55%);
+  pointer-events:none;z-index:0;}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;height:var(--nav-h);
+  background:rgba(8,11,20,.85);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 28px;gap:0;z-index:100;}
+.nav-brand{display:flex;align-items:center;gap:12px;text-decoration:none;flex-shrink:0;}
+.nav-icon{width:38px;height:38px;background:linear-gradient(135deg,#4f6ef7,#7b4fff);border-radius:10px;
+  display:grid;place-items:center;font-size:18px;box-shadow:0 0 18px rgba(79,110,247,.5);flex-shrink:0;}
+.nav-brand-text h1{font-size:.92rem;font-weight:700;letter-spacing:-.2px;color:var(--text);line-height:1.1;}
+.nav-brand-text p{font-size:.66rem;color:var(--text3);font-weight:400;margin-top:1px;letter-spacing:.2px;}
+.nav-links{display:flex;align-items:center;gap:4px;margin-left:32px;list-style:none;}
+.nav-links a{color:var(--text2);text-decoration:none;font-size:.80rem;font-weight:500;
+  padding:6px 12px;border-radius:8px;transition:color .2s,background .2s;white-space:nowrap;}
+.nav-links a:hover,.nav-links a.active{color:var(--text);background:var(--surface3);}
+.nav-links a.active{color:var(--accent2);}
+.nav-spacer{flex:1;}
+.nav-right{display:flex;align-items:center;gap:10px;}
+.status-chip{display:flex;align-items:center;gap:7px;background:var(--surface);
+  border:1px solid var(--border);border-radius:20px;padding:6px 14px;
+  font-size:.74rem;color:var(--text2);white-space:nowrap;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#444;transition:background .4s,box-shadow .4s;flex-shrink:0;}
+.status-dot.online{background:var(--success);box-shadow:0 0 8px var(--success);animation:pulse-dot 2s infinite;}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 6px var(--success);}50%{box-shadow:0 0 14px var(--success);}}
+
+/* HERO */
+.hero{margin-top:var(--nav-h);padding:28px 36px 0;position:relative;z-index:1;}
+.hero-inner{max-width:1380px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+.hero-left h2{font-size:1.5rem;font-weight:800;letter-spacing:-.5px;line-height:1.2;
+  background:linear-gradient(135deg,var(--text) 30%,var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hero-left p{font-size:.83rem;color:var(--text2);margin-top:6px;max-width:580px;line-height:1.65;}
+.hero-tags{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;}
+.tag{background:var(--surface3);border:1px solid var(--border);border-radius:20px;
+  padding:3px 11px;font-size:.70rem;color:var(--text2);font-weight:500;}
+.tag.blue{border-color:rgba(79,110,247,.4);color:var(--accent3);}
+.tag.green{border-color:rgba(52,211,153,.4);color:var(--success);}
+.tag.orange{border-color:rgba(251,146,60,.4);color:var(--fire);}
+.hero-stats{display:flex;gap:14px;flex-wrap:wrap;}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:12px 18px;text-align:center;min-width:90px;}
+.stat-box .val{font-size:1.25rem;font-weight:700;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.stat-box .lbl{font-size:.66rem;color:var(--text3);margin-top:2px;font-weight:500;}
+.divider{max-width:1380px;margin:22px auto 0;height:1px;background:var(--border);}
+
+/* LAYOUT */
+.page-body{max-width:1380px;margin:0 auto;padding:24px 36px 60px;
+  display:grid;grid-template-columns:420px 1fr;gap:22px;position:relative;z-index:1;}
+@media(max-width:1000px){.page-body{grid-template-columns:1fr;}}
+@media(max-width:640px){.hero{padding:20px 16px 0;}.page-body{padding:16px 16px 60px;}}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:24px;box-shadow:0 8px 48px rgba(0,0,0,.45);position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(79,110,247,.4),transparent);}
+.card-header{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
+.card-icon{width:32px;height:32px;background:var(--surface3);border:1px solid var(--border2);
+  border-radius:8px;display:grid;place-items:center;font-size:15px;flex-shrink:0;}
+.card-title{font-size:.9rem;font-weight:700;color:var(--text);}
+.card-sub{font-size:.70rem;color:var(--text3);margin-top:1px;}
+
+/* DROP ZONE */
+#drop-zone{border:2px dashed var(--border2);border-radius:var(--radius-sm);height:190px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  cursor:pointer;transition:border-color .25s,background .25s;
+  position:relative;overflow:hidden;background:var(--surface2);}
+#drop-zone:hover,#drop-zone.drag-over{border-color:var(--accent);background:rgba(79,110,247,.06);}
+#drop-zone.has-img{border-style:solid;border-color:var(--accent);}
+#drop-zone img#preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  border-radius:calc(var(--radius-sm) - 1px);opacity:.85;display:none;}
+.upload-overlay{position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(8,11,20,.85) 0%,transparent 50%);
+  border-radius:calc(var(--radius-sm) - 1px);display:none;}
+#drop-zone.has-img .upload-overlay{display:block;}
+.upload-hint{text-align:center;pointer-events:none;z-index:2;}
+.upload-icon{font-size:1.8rem;margin-bottom:4px;}
+.upload-hint p{font-size:.80rem;color:var(--text2);margin-top:4px;}
+.upload-hint span{font-size:.70rem;color:var(--accent2);}
+#file-input{display:none;}
+.img-change-btn{position:absolute;bottom:10px;right:10px;background:rgba(8,11,20,.8);
+  border:1px solid var(--border2);color:var(--text2);border-radius:7px;padding:4px 9px;
+  font-size:.70rem;cursor:pointer;z-index:3;display:none;backdrop-filter:blur(6px);}
+#drop-zone.has-img .img-change-btn{display:block;}
+
+/* FIELD */
+.field-label{font-size:.75rem;color:var(--text2);font-weight:600;
+  margin-bottom:7px;display:flex;align-items:center;gap:6px;}
+.dot2{width:5px;height:5px;background:var(--accent);border-radius:50%;flex-shrink:0;}
+.tweet-wrap{margin-top:16px;}
+#tweet-input{width:100%;min-height:84px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);color:var(--text);font-size:.86rem;padding:11px 13px;
+  resize:vertical;outline:none;font-family:inherit;line-height:1.55;transition:border-color .2s,box-shadow .2s;}
+#tweet-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,110,247,.15);}
+#tweet-input::placeholder{color:var(--text3);}
+.char-row{display:flex;justify-content:flex-end;margin-top:4px;}
+#char-count{font-size:.68rem;color:var(--text3);}
+
+/* SENSOR ACCORDION */
+.sensor-accordion{margin-top:16px;}
+.accordion-toggle{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px 14px;cursor:pointer;
+  font-size:.78rem;color:var(--text2);font-weight:600;
+  transition:background .2s,border-color .2s;user-select:none;}
+.accordion-toggle:hover{background:var(--surface3);border-color:var(--border2);}
+.accordion-toggle .acc-icon{font-size:.7rem;transition:transform .25s;}
+.accordion-toggle.open .acc-icon{transform:rotate(180deg);}
+.accordion-body{display:none;padding-top:14px;}
+.accordion-body.open{display:block;}
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.sensor-field label{display:block;font-size:.70rem;color:var(--text3);margin-bottom:4px;font-weight:500;}
+.sensor-field input{width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:.80rem;padding:7px 10px;outline:none;
+  font-family:inherit;transition:border-color .2s;}
+.sensor-field input:focus{border-color:var(--accent);}
+.sensor-field input::placeholder{color:var(--text3);}
+.sensor-section-title{font-size:.68rem;font-weight:700;color:var(--accent3);
+  text-transform:uppercase;letter-spacing:.8px;margin:12px 0 8px;
+  display:flex;align-items:center;gap:6px;}
+
+/* SUBMIT */
+#submit-btn{margin-top:18px;width:100%;padding:13px;
+  background:linear-gradient(135deg,var(--accent) 0%,#6a3fff 100%);
+  color:#fff;font-size:.88rem;font-weight:700;border:none;border-radius:var(--radius-sm);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;
+  transition:opacity .2s,transform .15s,box-shadow .2s;
+  box-shadow:0 4px 24px rgba(79,110,247,.4);letter-spacing:.2px;}
+#submit-btn:hover:not(:disabled){opacity:.9;transform:translateY(-2px);box-shadow:0 8px 32px rgba(79,110,247,.5);}
+#submit-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
+  border-radius:50%;animation:spin .65s linear infinite;display:none;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#error-msg{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.4);
+  color:var(--danger);border-radius:var(--radius-sm);padding:10px 13px;font-size:.80rem;
+  margin-top:10px;display:none;line-height:1.4;}
+#error-msg.visible{display:block;}
+
+/* ── RESULTS ── */
+.results-wrap{display:flex;flex-direction:column;gap:16px;}
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;text-align:center;padding:60px 20px;}
+.empty-icon{width:68px;height:68px;background:var(--surface3);border:1px solid var(--border);
+  border-radius:50%;display:grid;place-items:center;font-size:26px;opacity:.6;}
+.empty-state p{font-size:.82rem;color:var(--text3);max-width:240px;line-height:1.65;}
+
+/* Alert banner */
+.alert-banner{border-radius:var(--radius-sm);padding:16px 20px;display:none;
+  border-left:4px solid transparent;}
+.alert-banner.visible{display:flex;align-items:flex-start;gap:14px;}
+.alert-banner.GREEN{background:rgba(52,211,153,.08);border-color:var(--success);}
+.alert-banner.YELLOW{background:rgba(251,191,36,.08);border-color:var(--warn);}
+.alert-banner.ORANGE{background:rgba(251,146,60,.08);border-color:var(--fire);}
+.alert-banner.RED{background:rgba(248,113,113,.10);border-color:var(--danger);}
+.alert-emoji{font-size:1.6rem;line-height:1;flex-shrink:0;}
+.alert-right .alert-level-txt{font-size:.95rem;font-weight:800;letter-spacing:.3px;}
+.alert-banner.GREEN .alert-level-txt{color:var(--success);}
+.alert-banner.YELLOW .alert-level-txt{color:var(--warn);}
+.alert-banner.ORANGE .alert-level-txt{color:var(--fire);}
+.alert-banner.RED .alert-level-txt{color:var(--danger);}
+.alert-summary{font-size:.78rem;color:var(--text2);margin-top:5px;line-height:1.5;}
+
+/* Fusion strip */
+.fusion-strip{background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:16px;display:none;}
+.fusion-strip.visible{display:flex;flex-wrap:wrap;gap:16px;}
+.fstrip-col{flex:1;min-width:120px;}
+.fstrip-label{font-size:.68rem;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;}
+.fstrip-val{font-size:1.1rem;font-weight:700;}
+.fstrip-sub{font-size:.72rem;color:var(--text3);margin-top:2px;}
+.severity-bar-wrap{margin-top:6px;}
+.sev-track{height:8px;background:var(--surface3);border-radius:8px;overflow:hidden;}
+.sev-fill{height:100%;border-radius:8px;width:0;transition:width .8s cubic-bezier(.4,0,.2,1);
+  background:linear-gradient(90deg,var(--success),var(--warn),var(--danger));}
+.type-pill{display:inline-flex;align-items:center;gap:5px;border-radius:20px;
+  padding:3px 12px;font-size:.76rem;font-weight:700;margin-top:4px;}
+.type-pill.fire{background:rgba(251,146,60,.15);color:var(--fire);border:1px solid rgba(251,146,60,.3);}
+.type-pill.storm{background:rgba(96,165,250,.15);color:var(--storm);border:1px solid rgba(96,165,250,.3);}
+.type-pill.earthquake{background:rgba(167,139,250,.15);color:var(--quake);border:1px solid rgba(167,139,250,.3);}
+.type-pill.flood{background:rgba(52,211,153,.15);color:var(--flood);border:1px solid rgba(52,211,153,.3);}
+.type-pill.unknown{background:var(--surface3);color:var(--text2);border:1px solid var(--border);}
+.priority-badge{display:inline-flex;align-items:center;border-radius:6px;padding:3px 10px;
+  font-size:.76rem;font-weight:700;margin-top:4px;}
+.priority-badge.Low{background:rgba(52,211,153,.15);color:var(--success);}
+.priority-badge.Medium{background:rgba(251,191,36,.15);color:var(--warn);}
+.priority-badge.High{background:rgba(251,146,60,.15);color:var(--fire);}
+.priority-badge.Critical{background:rgba(248,113,113,.15);color:var(--danger);}
+
+/* Sensor panel */
+.sensor-panel,.crisis-panel{background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:16px;display:none;}
+.sensor-panel.visible,.crisis-panel.visible{display:block;}
+.section-label{font-size:.68rem;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.9px;margin-bottom:14px;
+  display:flex;align-items:center;gap:8px;}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+.group-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.group-row:last-child{margin-bottom:0;}
+.group-icon{font-size:13px;width:20px;text-align:center;flex-shrink:0;}
+.group-lbl{font-size:.76rem;color:var(--text2);width:72px;flex-shrink:0;}
+.group-track{flex:1;height:7px;background:var(--surface3);border-radius:8px;overflow:hidden;}
+.group-fill{height:100%;border-radius:8px;width:0;transition:width .7s cubic-bezier(.4,0,.2,1);}
+.fill-weather{background:linear-gradient(90deg,#fb923c,#fbbf24);}
+.fill-storm{background:linear-gradient(90deg,#60a5fa,#818cf8);}
+.fill-seismic{background:linear-gradient(90deg,#a78bfa,#c084fc);}
+.fill-hydro{background:linear-gradient(90deg,#34d399,#6ee7b7);}
+.group-pct{font-size:.75rem;color:var(--text2);width:36px;text-align:right;font-weight:600;}
+
+.risk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+.risk-item{background:var(--surface3);border:1px solid var(--border);
+  border-radius:8px;padding:10px 12px;}
+.risk-item-label{font-size:.68rem;color:var(--text3);font-weight:600;
+  text-transform:uppercase;letter-spacing:.5px;}
+.risk-item-val{font-size:1.15rem;font-weight:700;margin-top:3px;}
+.risk-item-val.fire-color{color:var(--fire);}
+.danger-color{color:var(--danger);}
+.risk-item-val.storm-color{color:var(--storm);}
+.risk-item-val.quake-color{color:var(--quake);}
+.risk-item-val.flood-color{color:var(--flood);}
+
+/* Crisis panel */
+.mod-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.mod-row:last-child{margin-bottom:0;}
+.mod-icon{font-size:13px;width:20px;text-align:center;flex-shrink:0;}
+.mod-lbl{font-size:.76rem;color:var(--text2);width:48px;flex-shrink:0;}
+.mod-track{flex:1;height:7px;background:var(--surface3);border-radius:8px;overflow:hidden;}
+.mod-fill{height:100%;border-radius:8px;width:0;transition:width .7s cubic-bezier(.4,0,.2,1);}
+.fill-v{background:linear-gradient(90deg,#4f6ef7,#8c9cf8);}
+.fill-t{background:linear-gradient(90deg,#34d399,#6ee7b7);}
+.mod-pct{font-size:.75rem;color:var(--text2);width:36px;text-align:right;font-weight:600;}
+.mod-conf-sub{font-size:.66rem;color:var(--text3);margin-top:1px;padding-left:28px;}
+
+.pred-hero-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.pred-cat-name{font-size:1.05rem;font-weight:800;text-transform:capitalize;flex:1;}
+.conf-badge{background:linear-gradient(135deg,var(--accent),#6a3fff);border-radius:20px;
+  padding:4px 12px;font-size:.76rem;font-weight:700;color:#fff;flex-shrink:0;}
+
+.probs-section{margin-top:14px;}
+.prob-row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px;
+  margin-bottom:4px;transition:background .2s;}
+.prob-row:last-child{margin-bottom:0;}
+.prob-row.top{background:rgba(79,110,247,.1);border:1px solid rgba(79,110,247,.18);}
+.prob-emoji{font-size:12px;width:18px;text-align:center;flex-shrink:0;}
+.prob-name{font-size:.75rem;flex:1;text-transform:capitalize;color:var(--text2);}
+.prob-row.top .prob-name{color:var(--text);font-weight:600;}
+.prob-track{width:90px;height:5px;background:var(--surface3);border-radius:5px;overflow:hidden;flex-shrink:0;}
+.prob-fill{height:100%;border-radius:5px;transition:width .7s cubic-bezier(.4,0,.2,1);background:var(--accent);}
+.prob-fill.top-fill{background:linear-gradient(90deg,var(--accent),var(--accent2));}
+.prob-val{font-size:.72rem;color:var(--text3);width:34px;text-align:right;flex-shrink:0;}
+
+.infer-chip{font-size:.7rem;color:var(--text3);padding:3px 9px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;display:inline-block;margin-top:6px;}
+
+/* Footer */
+footer{position:relative;z-index:1;border-top:1px solid var(--border);
+  padding:14px 36px;display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;background:rgba(8,11,20,.6);backdrop-filter:blur(10px);}
+.footer-left{font-size:.70rem;color:var(--text3);}
+.footer-left span{color:var(--accent2);}
+.footer-pills{display:flex;gap:7px;flex-wrap:wrap;}
+.footer-pill{background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:2px 9px;font-size:.66rem;color:var(--text3);}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-brand" href="#">
+    <div class="nav-icon">🌐</div>
+    <div class="nav-brand-text">
+      <h1>Multimodal Disaster Intelligence Platform</h1>
+      <p>IoT Sensor Fusion · Social Media Analysis · Real-time Assessment</p>
+    </div>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#" class="active">Dashboard</a></li>
+    <li><a href="#">IoT Monitor</a></li>
+    <li><a href="#">Event Log</a></li>
+    <li><a href="#">Model Info</a></li>
+  </ul>
+  <div class="nav-spacer"></div>
+  <div class="nav-right">
+    <div class="status-chip">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-left">
+      <h2>Unified Disaster Response Dashboard</h2>
+      <p>Combines IoT sensor signals with social media crisis analysis through adaptive cross-modal attention fusion. Disaster type is auto-detected — no manual input required.</p>
+      <div class="hero-tags">
+        <span class="tag orange">AdaptiveIoTClassifier</span>
+        <span class="tag blue">BLIP + XLM-RoBERTa</span>
+        <span class="tag green">Cross-Modal Fusion</span>
+        <span class="tag">Auto Type Detection</span>
+        <span class="tag">CrisisMMD v2.0</span>
+        <span class="tag">63K Sensor Samples</span>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-box"><div class="val">98%</div><div class="lbl">IoT Accuracy</div></div>
+      <div class="stat-box"><div class="val">0.91</div><div class="lbl">Macro F1</div></div>
+      <div class="stat-box"><div class="val">4</div><div class="lbl">Sensor Groups</div></div>
+      <div class="stat-box"><div class="val">5</div><div class="lbl">Hazard Types</div></div>
+      <div class="stat-box"><div class="val">1</div><div class="lbl">IoT Model</div></div>
+    </div>
+  </div>
+  <div class="divider"></div>
+</section>
+
+<!-- MAIN -->
+<main class="page-body">
+
+  <!-- INPUT CARD -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">📥</div>
+      <div>
+        <div class="card-title">Analysis Input</div>
+        <div class="card-sub">Social media + optional IoT sensor readings</div>
+      </div>
+    </div>
+
+    <div class="field-label"><span class="dot2"></span>Crisis Image</div>
+    <div id="drop-zone">
+      <img id="preview" src="" alt=""/>
+      <div class="upload-overlay"></div>
+      <div class="upload-hint">
+        <div class="upload-icon">🖼️</div>
+        <p>Drop an image or click to browse</p>
+        <span>JPG, PNG, WEBP · max 10 MB</span>
+      </div>
+      <button class="img-change-btn" onclick="document.getElementById('file-input').click();event.stopPropagation();">↺ Change</button>
+    </div>
+    <input type="file" id="file-input" accept="image/*"/>
+
+    <div class="tweet-wrap">
+      <div class="field-label"><span class="dot2"></span>Tweet / Social Media Text</div>
+      <textarea id="tweet-input" placeholder="Paste tweet or social media post here…" maxlength="560"></textarea>
+      <div class="char-row"><span id="char-count">0 / 560</span></div>
+    </div>
+
+    <!-- SENSOR ACCORDION -->
+    <div class="sensor-accordion">
+      <div class="accordion-toggle" id="acc-toggle">
+        <span>⚡ IoT Sensor Readings <span style="color:var(--text3);font-weight:400;">(optional — auto-detected if omitted)</span></span>
+        <span class="acc-icon">▼</span>
+      </div>
+      <div class="accordion-body" id="acc-body">
+
+        <div class="sensor-section-title">📍 Location</div>
+        <div class="sensor-grid">
+          <div class="sensor-field"><label>Latitude</label><input type="number" id="s-lat" placeholder="e.g. 6.93" step="0.01"/></div>
+          <div class="sensor-field"><label>Longitude</label><input type="number" id="s-lon" placeholder="e.g. 79.84" step="0.01"/></div>
+        </div>
+
+        <div class="sensor-section-title">🔥 Weather / Fire</div>
+        <div class="sensor-grid">
+          <div class="sensor-field"><label>Precipitation (mm)</label><input type="number" id="s-precip" placeholder="e.g. 2.5" min="0"/></div>
+          <div class="sensor-field"><label>Max Temp (°C)</label><input type="number" id="s-maxtemp" placeholder="e.g. 38"/></div>
+          <div class="sensor-field"><label>Min Temp (°C)</label><input type="number" id="s-mintemp" placeholder="e.g. 22"/></div>
+          <div class="sensor-field"><label>Wind Speed (km/h)</label><input type="number" id="s-wind" placeholder="e.g. 25" min="0"/></div>
+          <div class="sensor-field"><label>Month (1–12)</label><input type="number" id="s-month" placeholder="e.g. 10" min="1" max="12"/></div>
+        </div>
+
+        <div class="sensor-section-title">🌀 Storm Track</div>
+        <div class="sensor-grid">
+          <div class="sensor-field"><label>Wind (knots)</label><input type="number" id="s-windkts" placeholder="e.g. 120" min="0"/></div>
+          <div class="sensor-field"><label>Pressure (hPa)</label><input type="number" id="s-pressure" placeholder="e.g. 950"/></div>
+        </div>
+
+        <div class="sensor-section-title">🌍 Seismic</div>
+        <div class="sensor-grid">
+          <div class="sensor-field"><label>Depth (km)</label><input type="number" id="s-depth" placeholder="e.g. 15" min="0"/></div>
+          <div class="sensor-field"><label>RMS</label><input type="number" id="s-rms" placeholder="e.g. 0.3" step="0.01"/></div>
+          <div class="sensor-field"><label>No. of Stations</label><input type="number" id="s-stations" placeholder="e.g. 20" min="0"/></div>
+          <div class="sensor-field"><label>Azimuth Gap (°)</label><input type="number" id="s-gap" placeholder="e.g. 180" min="0" max="360"/></div>
+        </div>
+
+        <div class="sensor-section-title">💧 Hydrological / Flood</div>
+        <div class="sensor-grid">
+          <div class="sensor-field"><label>Elevation (m)</label><input type="number" id="s-elev" placeholder="e.g. 8" min="0"/></div>
+          <div class="sensor-field"><label>River Distance (m)</label><input type="number" id="s-river" placeholder="e.g. 120" min="0"/></div>
+          <div class="sensor-field"><label>Rainfall 7-day (mm)</label><input type="number" id="s-r7d" placeholder="e.g. 180" min="0"/></div>
+          <div class="sensor-field"><label>Monthly Rainfall (mm)</label><input type="number" id="s-rmon" placeholder="e.g. 320" min="0"/></div>
+          <div class="sensor-field"><label>NDVI</label><input type="number" id="s-ndvi" placeholder="e.g. -0.1" step="0.01" min="-1" max="1"/></div>
+          <div class="sensor-field"><label>NDWI</label><input type="number" id="s-ndwi" placeholder="e.g. 0.6" step="0.01" min="-1" max="1"/></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="error-msg"></div>
+    <button id="submit-btn" disabled>
+      <span class="spinner" id="spinner"></span>
+      <span id="btn-label">⚡ Run Unified Analysis</span>
+    </button>
+  </div>
+
+  <!-- RESULTS CARD -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">📊</div>
+      <div>
+        <div class="card-title">Unified Assessment Results</div>
+        <div class="card-sub">IoT sensors × social media fusion output</div>
+      </div>
+    </div>
+
+    <div class="results-wrap">
+
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">📡</div>
+        <p>Upload a crisis image and tweet text, then run analysis to see the fused disaster assessment.</p>
+      </div>
+
+      <!-- XAI: Grad-CAM + OpenAI Summary -->
+      <div class="sensor-panel" id="xai-panel" style="display:none;margin-bottom:12px;">
+        <div class="section-label">XAI — Explainable Analysis</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;">
+          <div id="gradcam-wrap" style="display:none;flex-shrink:0;">
+            <div style="font-size:.70rem;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;">Grad-CAM — Vision Focus</div>
+            <img id="gradcam-img" src="" alt="Grad-CAM" style="width:160px;height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--border2);"/>
+          </div>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-size:.70rem;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;">AI Responder Briefing</div>
+            <div id="xai-summary" style="font-size:.80rem;color:var(--text2);line-height:1.65;white-space:pre-wrap;"></div>
+            <div id="xai-loading" style="display:none;font-size:.78rem;color:var(--text3);font-style:italic;">Generating briefing…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alert Banner -->
+      <div class="alert-banner" id="alert-banner">
+        <div class="alert-emoji" id="alert-emoji">🟢</div>
+        <div class="alert-right">
+          <div class="alert-level-txt" id="alert-level-txt">GREEN — No Immediate Threat</div>
+          <div class="alert-summary" id="alert-summary"></div>
+        </div>
+      </div>
+
+      <!-- Fusion strip -->
+      <div class="fusion-strip" id="fusion-strip">
+        <div class="fstrip-col">
+          <div class="fstrip-label">Confirmed Type</div>
+          <div id="confirmed-type-pill"></div>
+        </div>
+        <div class="fstrip-col">
+          <div class="fstrip-label">Response Priority</div>
+          <div id="priority-badge"></div>
+        </div>
+        <div class="fstrip-col" style="flex:2;">
+          <div class="fstrip-label">Fused Severity</div>
+          <div class="severity-bar-wrap">
+            <div class="sev-track"><div class="sev-fill" id="sev-fill"></div></div>
+            <div class="fstrip-sub" id="sev-label" style="margin-top:5px;"></div>
+          </div>
+        </div>
+        <div class="fstrip-col" style="flex:0 0 auto;text-align:right;">
+          <div class="fstrip-label">Latency</div>
+          <div id="infer-time" class="infer-chip"></div>
+        </div>
+      </div>
+
+      <!-- IoT Panel -->
+      <div class="sensor-panel" id="sensor-panel">
+        <div class="section-label">IoT Sensor Analysis <span style="color:var(--accent3);font-size:.65rem;">(auto-detected)</span></div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:.72rem;color:var(--text3);margin-bottom:8px;font-weight:600;">Sensor Group Confidence Weights</div>
+          <div class="group-row">
+            <span class="group-icon">🌡️</span>
+            <span class="group-lbl">Weather</span>
+            <div class="group-track"><div class="group-fill fill-weather" id="gw-weather"></div></div>
+            <span class="group-pct" id="gp-weather">—</span>
+          </div>
+          <div class="group-row">
+            <span class="group-icon">🌀</span>
+            <span class="group-lbl">Storm</span>
+            <div class="group-track"><div class="group-fill fill-storm" id="gw-storm"></div></div>
+            <span class="group-pct" id="gp-storm">—</span>
+          </div>
+          <div class="group-row">
+            <span class="group-icon">🌍</span>
+            <span class="group-lbl">Seismic</span>
+            <div class="group-track"><div class="group-fill fill-seismic" id="gw-seismic"></div></div>
+            <span class="group-pct" id="gp-seismic">—</span>
+          </div>
+          <div class="group-row">
+            <span class="group-icon">💧</span>
+            <span class="group-lbl">Hydro</span>
+            <div class="group-track"><div class="group-fill fill-hydro" id="gw-hydro"></div></div>
+            <span class="group-pct" id="gp-hydro">—</span>
+          </div>
+        </div>
+
+        <div class="risk-grid">
+          <div class="risk-item">
+            <div class="risk-item-label">🔥 Fire Prob</div>
+            <div class="risk-item-val fire-color" id="r-fire">—</div>
+          </div>
+          <div class="risk-item">
+            <div class="risk-item-label">🌀 Storm Cat</div>
+            <div class="risk-item-val storm-color" id="r-storm">—</div>
+          </div>
+          <div class="risk-item">
+            <div class="risk-item-label">🌍 Magnitude</div>
+            <div class="risk-item-val quake-color" id="r-quake">—</div>
+          </div>
+          <div class="risk-item">
+            <div class="risk-item-label">💧 Flood Risk</div>
+            <div class="risk-item-val flood-color" id="r-flood">—</div>
+          </div>
+          <div class="risk-item" style="grid-column:1/-1;">
+            <div class="risk-item-label">💀 Casualty Risk</div>
+            <div class="risk-item-val danger-color" id="r-casualty">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Population Impact + Resource Needs Panel -->
+      <div class="sensor-panel" id="impact-panel" style="margin-top:12px;">
+        <div class="section-label">Population Impact &amp; Resource Needs</div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-size:.70rem;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;">Population Impact</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="mod-track" style="flex:1;"><div class="mod-fill" id="pop-fill" style="background:linear-gradient(90deg,#f59e0b,#ef4444);width:0%"></div></div>
+            <span class="mod-pct" id="pop-label">—</span>
+          </div>
+        </div>
+
+        <div style="font-size:.70rem;color:var(--text3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;">Resource Needs</div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:.80rem;width:70px;color:var(--text2);">💧 Water</span>
+            <div class="mod-track" style="flex:1;"><div class="mod-fill" id="res-fill-water" style="background:#3b82f6;width:0%"></div></div>
+            <span style="font-size:.78rem;color:var(--text2);min-width:34px;text-align:right;" id="res-pct-water">—</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:.80rem;width:70px;color:var(--text2);">🏥 Medical</span>
+            <div class="mod-track" style="flex:1;"><div class="mod-fill" id="res-fill-medical" style="background:#ef4444;width:0%"></div></div>
+            <span style="font-size:.78rem;color:var(--text2);min-width:34px;text-align:right;" id="res-pct-medical">—</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:.80rem;width:70px;color:var(--text2);">🚁 Rescue</span>
+            <div class="mod-track" style="flex:1;"><div class="mod-fill" id="res-fill-rescue" style="background:#f59e0b;width:0%"></div></div>
+            <span style="font-size:.78rem;color:var(--text2);min-width:34px;text-align:right;" id="res-pct-rescue">—</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:.80rem;width:70px;color:var(--text2);">🏠 Shelter</span>
+            <div class="mod-track" style="flex:1;"><div class="mod-fill" id="res-fill-shelter" style="background:#8b5cf6;width:0%"></div></div>
+            <span style="font-size:.78rem;color:var(--text2);min-width:34px;text-align:right;" id="res-pct-shelter">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Crisis Panel -->
+      <div class="crisis-panel" id="crisis-panel">
+        <div class="section-label">Crisis Social Media Analysis</div>
+
+        <div class="pred-hero-row">
+          <span id="crisis-emoji" style="font-size:1.4rem;"></span>
+          <span class="pred-cat-name" id="crisis-cat">—</span>
+          <span class="conf-badge" id="crisis-conf">—</span>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-size:.70rem;color:var(--text3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;">Modality Weights</div>
+          <div class="mod-row">
+            <span class="mod-icon">🖼️</span>
+            <span class="mod-lbl">Vision</span>
+            <div class="mod-track"><div class="mod-fill fill-v" id="fill-v"></div></div>
+            <span class="mod-pct" id="pct-v">—</span>
+          </div>
+          <div class="mod-conf-sub" id="conf-v-sub"></div>
+          <div class="mod-row" style="margin-top:7px;">
+            <span class="mod-icon">✍️</span>
+            <span class="mod-lbl">Text</span>
+            <div class="mod-track"><div class="mod-fill fill-t" id="fill-t"></div></div>
+            <span class="mod-pct" id="pct-t">—</span>
+          </div>
+        </div>
+
+        <div class="probs-section">
+          <div style="font-size:.70rem;color:var(--text3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;">Class Probabilities</div>
+          <div id="probs-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-left">© 2025 <span>Multimodal Disaster Intelligence Platform</span> · IoT × CrisisMMD v2.0 Fusion</div>
+  <div class="footer-pills">
+    <span class="footer-pill">AdaptiveIoTClassifier</span>
+    <span class="footer-pill">AdaptiveFusionClassifier</span>
+    <span class="footer-pill">BLIP + XLM-RoBERTa</span>
+    <span class="footer-pill">Cross-Modal Attention</span>
+    <span class="footer-pill">PyTorch · FastAPI</span>
+  </div>
+</footer>
+
+<script>
+const API = '';   // same origin; fusion server on port 8001
+
+const EMOJI_MAP = {
+  affected_individuals:                   '🧑‍🤝‍🧑',
+  infrastructure_and_utility_damage:      '🏗️',
+  not_humanitarian:                       '❌',
+  other_relevant_information:             'ℹ️',
+  rescue_volunteering_or_donation_effort: '🤝',
+};
+const ALERT_EMOJI = { GREEN:'🟢', YELLOW:'🟡', ORANGE:'🟠', RED:'🔴' };
+const TYPE_EMOJI  = { fire:'🔥', storm:'🌀', earthquake:'🌍', flood:'💧', unknown:'❓' };
+
+function fmt(s){ return s.replace(/_/g,' '); }
+
+// Health
+async function checkHealth(){
+  try{
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    const ok = d.pipeline;
+    document.getElementById('status-dot').className  = 'status-dot'+(ok?' online':'');
+    document.getElementById('status-text').textContent = ok ? 'Pipeline ready' : 'Loading…';
+    if(!ok) setTimeout(checkHealth, 3000);
+  }catch{
+    document.getElementById('status-text').textContent = 'Server offline';
+    setTimeout(checkHealth, 4000);
+  }
+}
+checkHealth();
+
+// Accordion
+document.getElementById('acc-toggle').addEventListener('click', function(){
+  this.classList.toggle('open');
+  document.getElementById('acc-body').classList.toggle('open');
+});
+
+// Drop zone
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const preview   = document.getElementById('preview');
+let selectedFile = null;
+
+dropZone.addEventListener('click', ()=>fileInput.click());
+dropZone.addEventListener('dragover',  e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e=>{
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f=e.dataTransfer.files[0];
+  if(f&&f.type.startsWith('image/')) setFile(f);
+});
+fileInput.addEventListener('change', ()=>{ if(fileInput.files[0]) setFile(fileInput.files[0]); });
+
+function setFile(f){
+  selectedFile=f;
+  preview.src=URL.createObjectURL(f);
+  preview.style.display='block';
+  dropZone.querySelector('.upload-hint').style.display='none';
+  dropZone.classList.add('has-img');
+  updateBtn();
+}
+
+// Tweet
+const tweetInput = document.getElementById('tweet-input');
+tweetInput.addEventListener('input', ()=>{
+  document.getElementById('char-count').textContent=`${tweetInput.value.length} / 560`;
+  updateBtn();
+});
+function updateBtn(){
+  document.getElementById('submit-btn').disabled = !(selectedFile && tweetInput.value.trim().length > 0);
+}
+
+// Submit
+document.getElementById('submit-btn').addEventListener('click', async ()=>{
+  clearError(); setLoading(true);
+  const fd = new FormData();
+  fd.append('image', selectedFile);
+  fd.append('tweet', tweetInput.value.trim());
+
+  // Attach optional sensor fields
+  const fields = {
+    lat: 's-lat', lon: 's-lon',
+    precipitation: 's-precip', max_temp: 's-maxtemp', min_temp: 's-mintemp',
+    avg_wind_speed: 's-wind', month: 's-month',
+    wind_kts: 's-windkts', pressure: 's-pressure',
+    depth: 's-depth', rms: 's-rms', n_stations: 's-stations', azimuth_gap: 's-gap',
+    elevation_m: 's-elev', distance_to_river_m: 's-river',
+    rainfall_7d: 's-r7d', monthly_rainfall: 's-rmon',
+    ndvi: 's-ndvi', ndwi: 's-ndwi',
+  };
+  for(const [key, id] of Object.entries(fields)){
+    const v = document.getElementById(id).value;
+    if(v !== '') fd.append(key, v);
+  }
+
+  try{
+    const res = await fetch(`${API}/analyze`, {method:'POST', body:fd});
+    if(!res.ok){ const e=await res.json().catch(()=>({detail:res.statusText})); throw new Error(e.detail||'Server error'); }
+    renderResults(await res.json());
+  }catch(e){ showError(e.message); }
+  finally{ setLoading(false); }
+});
+
+function renderResults(d){
+  document.getElementById('empty-state').style.display = 'none';
+
+  // ── XAI panel ──
+  const xai = d.xai || {};
+  const xaiPanel = document.getElementById('xai-panel');
+  xaiPanel.style.display = 'block';
+
+  // Grad-CAM
+  const gcWrap = document.getElementById('gradcam-wrap');
+  if(xai.gradcam_b64){
+    document.getElementById('gradcam-img').src = 'data:image/png;base64,' + xai.gradcam_b64;
+    gcWrap.style.display = 'block';
+  } else {
+    gcWrap.style.display = 'none';
+  }
+
+  // OpenAI summary
+  const summaryEl  = document.getElementById('xai-summary');
+  const loadingEl  = document.getElementById('xai-loading');
+  if(xai.summary){
+    summaryEl.textContent = xai.summary;
+    summaryEl.style.display = 'block';
+    loadingEl.style.display = 'none';
+  } else {
+    summaryEl.style.display = 'none';
+    loadingEl.style.display = 'none';
+  }
+
+  // ── Alert banner ──
+  const banner = document.getElementById('alert-banner');
+  const level  = d.alert_level || 'GREEN';
+  banner.className = `alert-banner visible ${level}`;
+  document.getElementById('alert-emoji').textContent   = ALERT_EMOJI[level] || '🟢';
+  document.getElementById('alert-level-txt').textContent = `${level} ALERT`;
+  document.getElementById('alert-summary').textContent = d.summary || '';
+
+  // ── Fusion strip ──
+  document.getElementById('fusion-strip').classList.add('visible');
+
+  const dtype = d.disaster_type || 'unknown';
+  const em    = TYPE_EMOJI[dtype] || '❓';
+  document.getElementById('confirmed-type-pill').innerHTML =
+    `<span class="type-pill ${dtype}">${em} ${dtype}</span>`;
+
+  const pri = d.priority || 'Low';
+  document.getElementById('priority-badge').innerHTML =
+    `<span class="priority-badge ${pri}">${pri}</span>`;
+
+  const sev = d.fused_severity || 0;
+  document.getElementById('sev-fill').style.width = (sev * 100) + '%';
+  document.getElementById('sev-label').textContent = `${(sev * 100).toFixed(1)}% severity`;
+
+  document.getElementById('infer-time').textContent = `⚡ ${d.inference_ms} ms`;
+
+  // ── IoT panel ──
+  const iot = d.iot || {};
+  document.getElementById('sensor-panel').classList.add('visible');
+  document.getElementById('impact-panel').classList.add('visible');
+
+  const sw = (iot.sensor_weights || {});
+  setGroupBar('weather', sw.weather || 0);
+  setGroupBar('storm',   sw.storm   || 0);
+  setGroupBar('seismic', sw.seismic || 0);
+  setGroupBar('hydro',   sw.hydro   || 0);
+
+  document.getElementById('r-fire').textContent     = ((iot.fire_prob||0)*100).toFixed(1)+'%';
+  document.getElementById('r-storm').textContent    = 'Cat '+(((iot.storm_cat||0)*5).toFixed(1));
+  document.getElementById('r-quake').textContent    = 'M'+((iot.eq_magnitude||0)*9).toFixed(2);
+  document.getElementById('r-flood').textContent    = ((iot.flood_risk||0)*100).toFixed(0)+'/100';
+  document.getElementById('r-casualty').textContent = ((iot.casualty_risk||0)*100).toFixed(1)+'%';
+
+  // ── Fusion extras ──
+  const fusion = d.fusion || {};
+  const pop    = (fusion.population_impact||0)*100;
+  document.getElementById('pop-fill').style.width   = pop.toFixed(1)+'%';
+  document.getElementById('pop-label').textContent  = pop.toFixed(1)+'% population impact';
+  const res = fusion.resource_needs || {};
+  ['water','medical','rescue','shelter'].forEach(r=>{
+    const pct = ((res[r]||0)*100).toFixed(0);
+    document.getElementById('res-fill-'+r).style.width  = pct+'%';
+    document.getElementById('res-pct-'+r).textContent   = pct+'%';
+  });
+
+  // ── Crisis panel ──
+  const crisis = d.crisis || {};
+  document.getElementById('crisis-panel').classList.add('visible');
+  const cat = crisis.category || '';
+  document.getElementById('crisis-emoji').textContent = EMOJI_MAP[cat] || '📌';
+  document.getElementById('crisis-cat').textContent   = fmt(cat);
+  document.getElementById('crisis-conf').textContent  = ((crisis.confidence||0)*100).toFixed(1)+'% conf';
+
+  const vw = ((crisis.vision_weight||0.5)*100).toFixed(1);
+  const tw = ((crisis.text_weight||0.5)*100).toFixed(1);
+  document.getElementById('fill-v').style.width   = vw+'%';
+  document.getElementById('fill-t').style.width   = tw+'%';
+  document.getElementById('pct-v').textContent    = vw+'%';
+  document.getElementById('pct-t').textContent    = tw+'%';
+  document.getElementById('conf-v-sub').textContent = `Vision confidence: ${vw}%`;
+
+  const list   = document.getElementById('probs-list');
+  list.innerHTML = '';
+  const sorted = Object.entries(crisis.probabilities||{}).sort((a,b)=>b[1]-a[1]);
+  sorted.forEach(([cls,prob])=>{
+    const isTop = cls === cat;
+    const pct   = (prob*100).toFixed(1);
+    const row   = document.createElement('div');
+    row.className = 'prob-row'+(isTop?' top':'');
+    row.innerHTML = `
+      <span class="prob-emoji">${EMOJI_MAP[cls]||'•'}</span>
+      <span class="prob-name">${fmt(cls)}</span>
+      <div class="prob-track"><div class="prob-fill${isTop?' top-fill':''}" style="width:${pct}%"></div></div>
+      <span class="prob-val">${pct}%</span>`;
+    list.appendChild(row);
+  });
+}
+
+function setGroupBar(name, val){
+  const pct = (val*100).toFixed(1);
+  document.getElementById('gw-'+name).style.width  = pct+'%';
+  document.getElementById('gp-'+name).textContent  = pct+'%';
+}
+
+function setLoading(on){
+  const btn = document.getElementById('submit-btn');
+  document.getElementById('spinner').style.display    = on?'inline-block':'none';
+  document.getElementById('btn-label').textContent    = on?'Analyzing…':'⚡ Run Unified Analysis';
+  btn.disabled = on;
+}
+function showError(msg){
+  const el=document.getElementById('error-msg');
+  el.textContent='⚠ '+msg; el.classList.add('visible');
+}
+function clearError(){ document.getElementById('error-msg').classList.remove('visible'); }
+</script>
+</body>
+</html>
