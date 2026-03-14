@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Multimodal Disaster Management System</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+:root{
+  --bg:         #080b14;
+  --bg2:        #0d1120;
+  --surface:    #111827;
+  --surface2:   #161d2e;
+  --surface3:   #1e2740;
+  --border:     rgba(99,120,200,.18);
+  --border2:    rgba(99,120,200,.28);
+  --accent:     #4f6ef7;
+  --accent2:    #7b93ff;
+  --accent3:    #a5b4fc;
+  --glow:       rgba(79,110,247,.35);
+  --glow2:      rgba(79,110,247,.12);
+  --text:       #e8edf8;
+  --text2:      #a8b4d0;
+  --text3:      #5f6e94;
+  --success:    #34d399;
+  --warn:       #fbbf24;
+  --danger:     #f87171;
+  --radius:     16px;
+  --radius-sm:  10px;
+  --nav-h:      64px;
+}
+
+html{scroll-behavior:smooth;}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ─── Background mesh ─── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(79,110,247,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 110%, rgba(99,60,200,.10) 0%, transparent 55%);
+  pointer-events:none;z-index:0;
+}
+
+/* ─── Navbar ─── */
+nav{
+  position:fixed;top:0;left:0;right:0;
+  height:var(--nav-h);
+  background:rgba(8,11,20,.82);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;
+  padding:0 32px;
+  gap:0;
+  z-index:100;
+}
+
+.nav-brand{
+  display:flex;align-items:center;gap:12px;
+  text-decoration:none;
+  flex-shrink:0;
+}
+.nav-icon{
+  width:38px;height:38px;
+  background:linear-gradient(135deg,#4f6ef7,#7b4fff);
+  border-radius:10px;
+  display:grid;place-items:center;
+  font-size:18px;
+  box-shadow:0 0 18px rgba(79,110,247,.5);
+  flex-shrink:0;
+}
+.nav-brand-text h1{
+  font-size:.95rem;font-weight:700;letter-spacing:-.2px;color:var(--text);
+  line-height:1.1;
+}
+.nav-brand-text p{
+  font-size:.68rem;color:var(--text3);font-weight:400;margin-top:1px;
+  letter-spacing:.2px;
+}
+
+.nav-links{
+  display:flex;align-items:center;gap:4px;
+  margin-left:40px;
+  list-style:none;
+}
+.nav-links a{
+  color:var(--text2);
+  text-decoration:none;
+  font-size:.82rem;font-weight:500;
+  padding:6px 14px;
+  border-radius:8px;
+  transition:color .2s,background .2s;
+  white-space:nowrap;
+}
+.nav-links a:hover,.nav-links a.active{
+  color:var(--text);background:var(--surface3);
+}
+.nav-links a.active{color:var(--accent2);}
+
+.nav-spacer{flex:1;}
+
+.nav-right{
+  display:flex;align-items:center;gap:10px;
+}
+
+.status-chip{
+  display:flex;align-items:center;gap:7px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:6px 14px;
+  font-size:.75rem;
+  color:var(--text2);
+  white-space:nowrap;
+}
+.status-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:#444;transition:background .4s,box-shadow .4s;
+  flex-shrink:0;
+}
+.status-dot.online{
+  background:var(--success);
+  box-shadow:0 0 8px var(--success);
+  animation:pulse-dot 2s infinite;
+}
+@keyframes pulse-dot{
+  0%,100%{box-shadow:0 0 6px var(--success);}
+  50%{box-shadow:0 0 14px var(--success);}
+}
+
+.nav-btn{
+  background:linear-gradient(135deg,var(--accent),#6a3fff);
+  color:#fff;border:none;
+  border-radius:8px;
+  padding:8px 16px;
+  font-size:.78rem;font-weight:600;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:opacity .2s,transform .1s;
+  box-shadow:0 0 16px rgba(79,110,247,.35);
+}
+.nav-btn:hover{opacity:.88;transform:translateY(-1px);}
+
+/* ─── Hero strip ─── */
+.hero{
+  margin-top:var(--nav-h);
+  padding:32px 40px 0;
+  position:relative;z-index:1;
+}
+.hero-inner{
+  max-width:1320px;margin:0 auto;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:16px;
+}
+.hero-left h2{
+  font-size:1.55rem;font-weight:800;
+  letter-spacing:-.5px;line-height:1.2;
+  background:linear-gradient(135deg,var(--text) 30%,var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.hero-left p{
+  font-size:.85rem;color:var(--text2);margin-top:6px;
+  max-width:520px;line-height:1.6;
+}
+.hero-tags{
+  display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;
+}
+.tag{
+  background:var(--surface3);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:4px 12px;
+  font-size:.72rem;color:var(--text2);
+  font-weight:500;
+}
+.tag.blue{border-color:rgba(79,110,247,.4);color:var(--accent3);}
+
+.hero-stats{
+  display:flex;gap:20px;flex-wrap:wrap;
+}
+.stat-box{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:14px 20px;
+  text-align:center;
+  min-width:100px;
+}
+.stat-box .val{
+  font-size:1.3rem;font-weight:700;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.stat-box .lbl{font-size:.7rem;color:var(--text3);margin-top:2px;font-weight:500;}
+
+/* ─── Divider ─── */
+.divider{
+  max-width:1320px;margin:24px auto 0;
+  height:1px;background:var(--border);
+}
+
+/* ─── Main grid ─── */
+.page-body{
+  max-width:1320px;margin:0 auto;
+  padding:28px 40px 60px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:24px;
+  position:relative;z-index:1;
+}
+@media(max-width:960px){.page-body{grid-template-columns:1fr;}}
+@media(max-width:700px){.hero{padding:24px 20px 0;}.page-body{padding:20px 20px 60px;}}
+
+/* ─── Card ─── */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:28px;
+  box-shadow:0 8px 48px rgba(0,0,0,.45);
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(79,110,247,.4),transparent);
+}
+.card-header{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:22px;
+}
+.card-icon{
+  width:34px;height:34px;
+  background:var(--surface3);
+  border:1px solid var(--border2);
+  border-radius:9px;
+  display:grid;place-items:center;
+  font-size:16px;flex-shrink:0;
+}
+.card-title{font-size:.92rem;font-weight:700;color:var(--text);}
+.card-sub{font-size:.72rem;color:var(--text3);margin-top:1px;}
+
+/* ─── Drop zone ─── */
+#drop-zone{
+  border:2px dashed var(--border2);
+  border-radius:var(--radius-sm);
+  height:210px;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;
+  cursor:pointer;
+  transition:border-color .25s,background .25s;
+  position:relative;overflow:hidden;
+  background:var(--surface2);
+}
+#drop-zone:hover,#drop-zone.drag-over{
+  border-color:var(--accent);
+  background:rgba(79,110,247,.06);
+}
+#drop-zone.has-img{border-style:solid;border-color:var(--accent);}
+#drop-zone img#preview{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;border-radius:calc(var(--radius-sm) - 1px);
+  opacity:.85;
+}
+.upload-overlay{
+  position:absolute;inset:0;
+  background:linear-gradient(to top, rgba(8,11,20,.85) 0%, transparent 50%);
+  border-radius:calc(var(--radius-sm) - 1px);
+  display:none;
+}
+#drop-zone.has-img .upload-overlay{display:block;}
+.upload-hint{text-align:center;pointer-events:none;z-index:2;}
+.upload-icon{font-size:2rem;margin-bottom:4px;}
+.upload-hint p{font-size:.82rem;color:var(--text2);margin-top:4px;}
+.upload-hint span{font-size:.72rem;color:var(--accent2);}
+#file-input{display:none;}
+
+.img-change-btn{
+  position:absolute;bottom:12px;right:12px;
+  background:rgba(8,11,20,.8);
+  border:1px solid var(--border2);
+  color:var(--text2);
+  border-radius:7px;padding:5px 10px;font-size:.72rem;
+  cursor:pointer;z-index:3;display:none;
+  backdrop-filter:blur(6px);
+  transition:color .2s;
+}
+#drop-zone.has-img .img-change-btn{display:block;}
+.img-change-btn:hover{color:var(--text);}
+
+/* ─── Label ─── */
+.field-label{
+  font-size:.78rem;color:var(--text2);font-weight:500;
+  margin-bottom:8px;display:flex;align-items:center;gap:6px;
+}
+.field-label .dot2{
+  width:5px;height:5px;background:var(--accent);border-radius:50%;
+}
+
+/* ─── Textarea ─── */
+.tweet-wrap{margin-top:18px;}
+#tweet-input{
+  width:100%;min-height:96px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--text);
+  font-size:.88rem;
+  padding:13px 14px;
+  resize:vertical;outline:none;
+  font-family:inherit;line-height:1.55;
+  transition:border-color .2s,box-shadow .2s;
+}
+#tweet-input:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(79,110,247,.15);
+}
+#tweet-input::placeholder{color:var(--text3);}
+.char-row{display:flex;justify-content:flex-end;margin-top:5px;}
+#char-count{font-size:.7rem;color:var(--text3);}
+
+/* ─── Submit ─── */
+#submit-btn{
+  margin-top:20px;width:100%;
+  padding:14px;
+  background:linear-gradient(135deg,var(--accent) 0%,#6a3fff 100%);
+  color:#fff;font-size:.9rem;font-weight:700;
+  border:none;border-radius:var(--radius-sm);
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  transition:opacity .2s,transform .15s,box-shadow .2s;
+  box-shadow:0 4px 24px rgba(79,110,247,.4);
+  letter-spacing:.2px;
+}
+#submit-btn:hover:not(:disabled){
+  opacity:.9;transform:translateY(-2px);
+  box-shadow:0 8px 32px rgba(79,110,247,.5);
+}
+#submit-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.spinner{
+  width:17px;height:17px;
+  border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:spin .65s linear infinite;
+  display:none;flex-shrink:0;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ─── Error ─── */
+#error-msg{
+  background:rgba(248,113,113,.08);
+  border:1px solid rgba(248,113,113,.4);
+  color:var(--danger);
+  border-radius:var(--radius-sm);
+  padding:11px 14px;font-size:.82rem;
+  margin-top:12px;display:none;
+  line-height:1.4;
+}
+#error-msg.visible{display:block;}
+
+/* ─── Results ─── */
+.results-wrap{display:flex;flex-direction:column;gap:18px;}
+
+/* Empty */
+.empty-state{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:14px;text-align:center;padding:50px 20px;
+}
+.empty-icon{
+  width:72px;height:72px;
+  background:var(--surface3);
+  border:1px solid var(--border);
+  border-radius:50%;
+  display:grid;place-items:center;
+  font-size:28px;
+  opacity:.6;
+}
+.empty-state p{font-size:.83rem;color:var(--text3);max-width:220px;line-height:1.6;}
+
+/* Prediction hero */
+.pred-hero{
+  background:linear-gradient(135deg,var(--surface2) 0%,var(--surface3) 100%);
+  border:1px solid var(--border2);
+  border-radius:var(--radius-sm);
+  padding:22px;
+  display:none;
+  position:relative;overflow:hidden;
+}
+.pred-hero::after{
+  content:'';
+  position:absolute;top:-40px;right:-40px;
+  width:120px;height:120px;
+  background:radial-gradient(circle,rgba(79,110,247,.18) 0%,transparent 70%);
+  pointer-events:none;
+}
+.pred-hero.visible{display:block;}
+.pred-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(79,110,247,.15);
+  border:1px solid rgba(79,110,247,.3);
+  border-radius:6px;padding:3px 10px;
+  font-size:.68rem;color:var(--accent2);font-weight:600;
+  text-transform:uppercase;letter-spacing:.8px;
+  margin-bottom:10px;
+}
+.pred-class-name{
+  font-size:1.3rem;font-weight:800;
+  letter-spacing:-.3px;line-height:1.2;
+  text-transform:capitalize;
+}
+.pred-meta{
+  display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;
+}
+.conf-badge{
+  background:linear-gradient(135deg,var(--accent),#6a3fff);
+  border-radius:20px;padding:4px 14px;
+  font-size:.8rem;font-weight:700;color:#fff;
+}
+.infer-chip{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;padding:4px 12px;
+  font-size:.75rem;color:var(--text3);
+}
+
+/* Modality card */
+.mod-card{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:18px;display:none;
+}
+.mod-card.visible{display:block;}
+.section-label{
+  font-size:.72rem;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.9px;
+  margin-bottom:14px;
+}
+.mod-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.mod-row:last-child{margin-bottom:0;}
+.mod-icon{font-size:14px;width:22px;text-align:center;flex-shrink:0;}
+.mod-lbl{font-size:.8rem;color:var(--text2);width:52px;flex-shrink:0;}
+.mod-track{
+  flex:1;height:8px;
+  background:var(--surface3);
+  border-radius:10px;overflow:hidden;
+}
+.mod-fill{height:100%;border-radius:10px;width:0;transition:width .7s cubic-bezier(.4,0,.2,1);}
+.fill-v{background:linear-gradient(90deg,#4f6ef7,#8c9cf8);}
+.fill-t{background:linear-gradient(90deg,#34d399,#6ee7b7);}
+.mod-pct{font-size:.78rem;color:var(--text2);width:38px;text-align:right;flex-shrink:0;font-weight:600;}
+.mod-conf-sub{font-size:.68rem;color:var(--text3);margin-top:2px;padding-left:22px;}
+
+/* Probs card */
+.probs-card{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:18px;display:none;
+}
+.probs-card.visible{display:block;}
+.prob-row{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 8px;border-radius:8px;
+  margin-bottom:5px;
+  transition:background .2s;
+}
+.prob-row:last-child{margin-bottom:0;}
+.prob-row.top{background:rgba(79,110,247,.1);border:1px solid rgba(79,110,247,.18);}
+.prob-emoji{font-size:13px;width:20px;text-align:center;flex-shrink:0;}
+.prob-name{font-size:.78rem;flex:1;text-transform:capitalize;color:var(--text2);}
+.prob-row.top .prob-name{color:var(--text);font-weight:600;}
+.prob-track{width:100px;height:6px;background:var(--surface3);border-radius:6px;overflow:hidden;flex-shrink:0;}
+.prob-fill{height:100%;border-radius:6px;transition:width .7s cubic-bezier(.4,0,.2,1);background:var(--accent);}
+.prob-fill.top-fill{background:linear-gradient(90deg,var(--accent),var(--accent2));}
+.prob-val{font-size:.75rem;color:var(--text3);width:36px;text-align:right;flex-shrink:0;}
+
+/* ─── Footer ─── */
+footer{
+  position:relative;z-index:1;
+  border-top:1px solid var(--border);
+  padding:16px 40px;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;
+  background:rgba(8,11,20,.6);
+  backdrop-filter:blur(10px);
+}
+.footer-left{font-size:.72rem;color:var(--text3);}
+.footer-left span{color:var(--accent2);}
+.footer-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.footer-pill{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;padding:3px 10px;
+  font-size:.68rem;color:var(--text3);
+}
+</style>
+</head>
+<body>
+
+<!-- ─── Navbar ─── -->
+<nav>
+  <a class="nav-brand" href="#">
+    <div class="nav-icon">🌐</div>
+    <div class="nav-brand-text">
+      <h1>Multimodal Disaster Management System</h1>
+      <p>AI-Powered Crisis Response Intelligence Platform</p>
+    </div>
+  </a>
+
+  <ul class="nav-links">
+    <li><a href="#" class="active">Dashboard</a></li>
+    <li><a href="#">Analytics</a></li>
+    <li><a href="#">Event Log</a></li>
+    <li><a href="#">Model Info</a></li>
+    <li><a href="#">Documentation</a></li>
+  </ul>
+
+  <div class="nav-spacer"></div>
+
+  <div class="nav-right">
+    <div class="status-chip">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+    <button class="nav-btn">+ New Analysis</button>
+  </div>
+</nav>
+
+<!-- ─── Hero strip ─── -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-left">
+      <h2>Crisis Intelligence Dashboard</h2>
+      <p>Classify disaster-related social media content using adaptive multimodal deep learning. Combines satellite imagery and text signals for real-time humanitarian response.</p>
+      <div class="hero-tags">
+        <span class="tag blue">BLIP Vision Encoder</span>
+        <span class="tag blue">XLM-RoBERTa Text</span>
+        <span class="tag">Adaptive Fusion</span>
+        <span class="tag">CrisisMMD v2.0</span>
+        <span class="tag">5-Class Humanitarian</span>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-box"><div class="val">18K+</div><div class="lbl">Training Samples</div></div>
+      <div class="stat-box"><div class="val">7</div><div class="lbl">Disaster Events</div></div>
+      <div class="stat-box"><div class="val">5</div><div class="lbl">Humanitarian Classes</div></div>
+      <div class="stat-box"><div class="val">P100</div><div class="lbl">GPU Trained</div></div>
+    </div>
+  </div>
+  <div class="divider"></div>
+</section>
+
+<!-- ─── Main grid ─── -->
+<main class="page-body">
+
+  <!-- INPUT CARD -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">📥</div>
+      <div>
+        <div class="card-title">Analysis Input</div>
+        <div class="card-sub">Upload a crisis image and provide tweet context</div>
+      </div>
+    </div>
+
+    <!-- Drop zone -->
+    <div class="field-label"><span class="dot2"></span>Crisis Image</div>
+    <div id="drop-zone">
+      <img id="preview" src="" alt="" style="display:none"/>
+      <div class="upload-overlay"></div>
+      <div class="upload-hint">
+        <div class="upload-icon">🖼️</div>
+        <p>Drop an image or click to browse</p>
+        <span>JPG, PNG, WEBP · max 10 MB</span>
+      </div>
+      <button class="img-change-btn" onclick="document.getElementById('file-input').click();event.stopPropagation();">↺ Change</button>
+    </div>
+    <input type="file" id="file-input" accept="image/*"/>
+
+    <!-- Tweet -->
+    <div class="tweet-wrap">
+      <div class="field-label"><span class="dot2"></span>Associated Tweet Text</div>
+      <textarea id="tweet-input" placeholder="Paste the tweet text here…" maxlength="560"></textarea>
+      <div class="char-row"><span id="char-count">0 / 560</span></div>
+    </div>
+
+    <div id="error-msg"></div>
+
+    <button id="submit-btn" disabled>
+      <span class="spinner" id="spinner"></span>
+      <span id="btn-label">⚡ Run Classification</span>
+    </button>
+  </div>
+
+  <!-- RESULTS CARD -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">📊</div>
+      <div>
+        <div class="card-title">Classification Results</div>
+        <div class="card-sub">Humanitarian category prediction with confidence analysis</div>
+      </div>
+    </div>
+
+    <div class="results-wrap">
+
+      <!-- Empty -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">📡</div>
+        <p>Upload an image and tweet text, then run classification to see results.</p>
+      </div>
+
+      <!-- Prediction hero -->
+      <div class="pred-hero" id="pred-hero">
+        <div class="pred-badge">✓ Classification Complete</div>
+        <div class="pred-class-name" id="pred-label">—</div>
+        <div class="pred-meta">
+          <span class="conf-badge" id="pred-conf">—</span>
+          <span class="infer-time" id="infer-time"></span>
+        </div>
+      </div>
+
+      <!-- Modality -->
+      <div class="mod-card" id="mod-card">
+        <div class="section-label">Modality Contribution</div>
+        <div class="mod-row">
+          <span class="mod-icon">🖼️</span>
+          <span class="mod-lbl">Vision</span>
+          <div class="mod-track"><div class="mod-fill fill-v" id="fill-v"></div></div>
+          <span class="mod-pct" id="pct-v">—</span>
+        </div>
+        <div class="mod-conf-sub" id="conf-v-sub"></div>
+        <div class="mod-row" style="margin-top:8px;">
+          <span class="mod-icon">✍️</span>
+          <span class="mod-lbl">Text</span>
+          <div class="mod-track"><div class="mod-fill fill-t" id="fill-t"></div></div>
+          <span class="mod-pct" id="pct-t">—</span>
+        </div>
+        <div class="mod-conf-sub" id="conf-t-sub"></div>
+      </div>
+
+      <!-- Probs -->
+      <div class="probs-card" id="probs-card">
+        <div class="section-label">Class Probabilities</div>
+        <div id="probs-list"></div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- ─── Footer ─── -->
+<footer>
+  <div class="footer-left">
+    © 2025 <span>Multimodal Disaster Management System</span> · CrisisMMD v2.0 Dataset
+  </div>
+  <div class="footer-pills">
+    <span class="footer-pill">AdaptiveFusionClassifier</span>
+    <span class="footer-pill">BLIP + XLM-RoBERTa</span>
+    <span class="footer-pill">PyTorch · FastAPI</span>
+    <span class="footer-pill">ISCRAM 2020</span>
+  </div>
+</footer>
+
+<script>
+const API = '';
+
+const EMOJI = {
+  affected_individuals:                   '🧑‍🤝‍🧑',
+  infrastructure_and_utility_damage:      '🏗️',
+  not_humanitarian:                       '❌',
+  other_relevant_information:             'ℹ️',
+  rescue_volunteering_or_donation_effort: '🤝',
+};
+
+function fmt(name){ return name.replace(/_/g,' '); }
+
+// ── Health ──
+async function checkHealth(){
+  try{
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    const ok = d.model_loaded;
+    document.getElementById('status-dot').className  = 'status-dot' + (ok ? ' online' : '');
+    document.getElementById('status-text').textContent = ok ? 'Model ready' : 'Loading model…';
+    if(!ok) setTimeout(checkHealth,3000);
+  }catch{
+    document.getElementById('status-text').textContent = 'Server offline';
+    setTimeout(checkHealth,4000);
+  }
+}
+checkHealth();
+
+// ── Drop zone ──
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const preview   = document.getElementById('preview');
+const hint      = dropZone.querySelector('.upload-hint');
+let selectedFile = null;
+
+dropZone.addEventListener('click', ()=>fileInput.click());
+dropZone.addEventListener('dragover',  e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e=>{
+  e.preventDefault();dropZone.classList.remove('drag-over');
+  const f=e.dataTransfer.files[0];
+  if(f&&f.type.startsWith('image/')) setFile(f);
+});
+fileInput.addEventListener('change',()=>{if(fileInput.files[0]) setFile(fileInput.files[0]);});
+
+function setFile(f){
+  selectedFile=f;
+  preview.src=URL.createObjectURL(f);
+  preview.style.display='block';
+  hint.style.display='none';
+  dropZone.classList.add('has-img');
+  updateBtn();
+}
+
+// ── Tweet ──
+const tweetInput = document.getElementById('tweet-input');
+tweetInput.addEventListener('input',()=>{
+  document.getElementById('char-count').textContent=`${tweetInput.value.length} / 560`;
+  updateBtn();
+});
+function updateBtn(){
+  document.getElementById('submit-btn').disabled = !(selectedFile && tweetInput.value.trim().length>0);
+}
+
+// ── Submit ──
+document.getElementById('submit-btn').addEventListener('click', async()=>{
+  clearError(); setLoading(true);
+  const fd=new FormData();
+  fd.append('image',selectedFile);
+  fd.append('tweet',tweetInput.value.trim());
+  try{
+    const res = await fetch(`${API}/predict`,{method:'POST',body:fd});
+    if(!res.ok){ const e=await res.json().catch(()=>({detail:res.statusText})); throw new Error(e.detail||'Server error'); }
+    renderResults(await res.json());
+  }catch(e){ showError(e.message); }
+  finally{ setLoading(false); }
+});
+
+// ── Render ──
+function renderResults(d){
+  document.getElementById('empty-state').style.display='none';
+
+  // Hero
+  const hero=document.getElementById('pred-hero');
+  hero.classList.add('visible');
+  const em=EMOJI[d.prediction]||'📌';
+  document.getElementById('pred-label').textContent=`${em}  ${fmt(d.prediction)}`;
+  document.getElementById('pred-conf').textContent=`${(d.confidence*100).toFixed(1)}% confidence`;
+  document.getElementById('infer-time').textContent=`⚡ ${d.inference_ms} ms`;
+
+  // Modality
+  const mc=document.getElementById('mod-card');
+  mc.classList.add('visible');
+  const vw=(d.modality.vision_weight*100).toFixed(1);
+  const tw=(d.modality.text_weight*100).toFixed(1);
+  document.getElementById('fill-v').style.width=vw+'%';
+  document.getElementById('fill-t').style.width=tw+'%';
+  document.getElementById('pct-v').textContent=vw+'%';
+  document.getElementById('pct-t').textContent=tw+'%';
+  document.getElementById('conf-v-sub').textContent=`Raw confidence score: ${(d.modality.vision_conf*100).toFixed(1)}%`;
+  document.getElementById('conf-t-sub').textContent=`Raw confidence score: ${(d.modality.text_conf*100).toFixed(1)}%`;
+
+  // Probs
+  const pc=document.getElementById('probs-card');
+  pc.classList.add('visible');
+  const list=document.getElementById('probs-list');
+  list.innerHTML='';
+  const sorted=Object.entries(d.probabilities).sort((a,b)=>b[1]-a[1]);
+  sorted.forEach(([cls,prob])=>{
+    const isTop=cls===d.prediction;
+    const pct=(prob*100).toFixed(1);
+    const row=document.createElement('div');
+    row.className='prob-row'+(isTop?' top':'');
+    row.innerHTML=`
+      <span class="prob-emoji">${EMOJI[cls]||'•'}</span>
+      <span class="prob-name">${fmt(cls)}</span>
+      <div class="prob-track"><div class="prob-fill${isTop?' top-fill':''}" style="width:${pct}%"></div></div>
+      <span class="prob-val">${pct}%</span>`;
+    list.appendChild(row);
+  });
+}
+
+function setLoading(on){
+  const btn=document.getElementById('submit-btn');
+  document.getElementById('spinner').style.display=on?'block':'none';
+  document.getElementById('btn-label').textContent=on?'Classifying…':'⚡ Run Classification';
+  btn.disabled=on;
+}
+function showError(msg){
+  const el=document.getElementById('error-msg');
+  el.textContent='⚠ '+msg; el.classList.add('visible');
+}
+function clearError(){ document.getElementById('error-msg').classList.remove('visible'); }
+</script>
+</body>
+</html>
