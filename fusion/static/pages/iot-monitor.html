@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IoT Monitor | Multimodal Disaster Intelligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/base.css"/>
+</head>
+<body>
+  <div class="site-shell">
+    <div id="app-header"></div>
+
+    <main class="page">
+      <section class="page-hero">
+        <div class="eyebrow">IoT monitor</div>
+        <h1 class="hero-title">Dedicated view for sensor-weighted risk, hazard readings, and IoT confidence.</h1>
+        <p class="hero-copy">
+          This page isolates the sensor side of the system so operators can read the environmental signal
+          without scanning the full case briefing.
+        </p>
+      </section>
+
+      <div class="empty-state" id="iot-empty" style="display:none;">
+        No IoT-backed case is available yet. Run a case from New Analysis or open one from Reports.
+      </div>
+
+      <div class="page" id="iot-content" style="display:none;">
+        <section class="grid-two">
+          <div class="surface pad stack">
+            <div class="section-heading">
+              <div>
+                <h2>Latest sensor case</h2>
+                <p>Most recent saved record routed into the monitor.</p>
+              </div>
+            </div>
+
+            <div class="grid-three">
+              <div class="metric-card">
+                <div class="metric-label">Hazard</div>
+                <div class="metric-value" id="iot-case-type"></div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Updated</div>
+                <div class="metric-note" id="iot-case-time"></div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Scope</div>
+                <div class="metric-note">Sensor-only reading for rapid review.</div>
+              </div>
+            </div>
+
+            <div class="split-bars" id="iot-weights"></div>
+          </div>
+
+          <div class="surface pad">
+            <div class="section-heading">
+              <div>
+                <h2>Hazard metrics</h2>
+                <p>Interpreted outputs from the IoT side of the fusion pipeline.</p>
+              </div>
+            </div>
+
+            <div class="grid-three">
+              <div class="metric-card">
+                <div class="metric-label">Fire probability</div>
+                <div class="metric-value" id="iot-fire"></div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Storm category</div>
+                <div class="metric-value" id="iot-storm"></div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Magnitude</div>
+                <div class="metric-value" id="iot-quake"></div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Flood risk</div>
+                <div class="metric-value" id="iot-flood"></div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Casualty risk</div>
+                <div class="metric-value" id="iot-casualty"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <div id="app-footer"></div>
+  </div>
+
+  <script type="module">
+    import { initShell } from "/static/js/app-shell.js";
+    import { initIotMonitorPage } from "/static/js/pages/iot-monitor.js";
+
+    await initShell("iot-monitor");
+    initIotMonitorPage();
+  </script>
+</body>
+</html>

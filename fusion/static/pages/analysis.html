@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>New Analysis | Multimodal Disaster Intelligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/base.css"/>
+</head>
+<body>
+  <div class="site-shell">
+    <div id="app-header"></div>
+
+    <main class="page">
+      <section class="page-hero">
+        <div class="eyebrow">New analysis</div>
+        <h1 class="hero-title">Compose a new disaster case and run the multimodal fusion pipeline.</h1>
+        <p class="hero-copy">
+          This page is now dedicated to intake only. Submit image evidence, the public report,
+          and optional sensor values. The result is saved and can be reviewed later in incident details and reports.
+        </p>
+      </section>
+
+      <section class="grid-two">
+        <div class="surface pad">
+          <form id="analysis-form" class="stack">
+            <div class="field">
+              <label for="analysis-file">Image evidence</label>
+              <div class="media-stage" id="analysis-dropzone" tabindex="0" role="button" aria-label="Choose or drop image file">
+                <img id="analysis-preview" alt="Analysis preview"/>
+                <div class="hint" id="analysis-hint">
+                  <strong>Drop a field image or browse your files</strong>
+                  <p>Use JPG, PNG, or WEBP. The model will combine this image with the public report text.</p>
+                  <div class="hint-actions">
+                    <span class="file-chip">Choose file</span>
+                    <span class="hint-meta">Drag and drop is supported</span>
+                  </div>
+                </div>
+              </div>
+              <input class="file-input" id="analysis-file" type="file" accept="image/*"/>
+              <small class="file-status" id="analysis-file-status">No image selected.</small>
+            </div>
+
+            <div class="field">
+              <label for="tweet-input">Public report text</label>
+              <textarea id="tweet-input" maxlength="560" placeholder="Paste the tweet, field note, or witness report here."></textarea>
+              <small id="analysis-char-count">0 / 560</small>
+            </div>
+
+            <div class="subsection">
+              <h3>Location</h3>
+              <div class="form-grid">
+                <div class="field"><label>Latitude</label><input id="s-lat" type="number" step="0.01" placeholder="6.93"/></div>
+                <div class="field"><label>Longitude</label><input id="s-lon" type="number" step="0.01" placeholder="79.84"/></div>
+              </div>
+            </div>
+
+            <div class="subsection">
+              <h3>Weather and fire</h3>
+              <div class="form-grid">
+                <div class="field"><label>Precipitation (mm)</label><input id="s-precip" type="number" placeholder="2.5"/></div>
+                <div class="field"><label>Max temp (C)</label><input id="s-maxtemp" type="number" placeholder="38"/></div>
+                <div class="field"><label>Min temp (C)</label><input id="s-mintemp" type="number" placeholder="22"/></div>
+                <div class="field"><label>Wind speed (km/h)</label><input id="s-wind" type="number" placeholder="25"/></div>
+                <div class="field"><label>Month (1-12)</label><input id="s-month" type="number" min="1" max="12" placeholder="10"/></div>
+              </div>
+            </div>
+
+            <div class="subsection">
+              <h3>Storm and flood</h3>
+              <div class="form-grid">
+                <div class="field"><label>Wind (knots)</label><input id="s-windkts" type="number" placeholder="120"/></div>
+                <div class="field"><label>Pressure (hPa)</label><input id="s-pressure" type="number" placeholder="950"/></div>
+                <div class="field"><label>Depth (km)</label><input id="s-depth" type="number" placeholder="15"/></div>
+                <div class="field"><label>Elevation (m)</label><input id="s-elev" type="number" placeholder="8"/></div>
+                <div class="field"><label>River distance (m)</label><input id="s-river" type="number" placeholder="120"/></div>
+                <div class="field"><label>Rainfall 7-day (mm)</label><input id="s-r7d" type="number" placeholder="180"/></div>
+                <div class="field"><label>Monthly rainfall (mm)</label><input id="s-rmon" type="number" placeholder="320"/></div>
+                <div class="field"><label>NDVI</label><input id="s-ndvi" type="number" step="0.01" placeholder="-0.10"/></div>
+                <div class="field"><label>NDWI</label><input id="s-ndwi" type="number" step="0.01" placeholder="0.60"/></div>
+              </div>
+            </div>
+
+            <div class="empty-state" id="analysis-error" style="display:none;"></div>
+            <button class="button" id="analysis-submit" type="submit">
+              <span id="analysis-submit-label">Run unified analysis</span>
+            </button>
+          </form>
+        </div>
+
+        <div class="surface pad stack">
+          <div class="section-heading">
+            <div>
+              <h2>Latest run</h2>
+              <p>After analysis finishes, use these links to continue the workflow.</p>
+            </div>
+          </div>
+
+          <div class="result-banner" id="analysis-result" style="display:none;">
+            <h3 id="analysis-result-title">Analysis complete</h3>
+            <p id="analysis-result-summary"></p>
+          </div>
+
+          <div class="grid-three">
+            <div class="metric-card">
+              <div class="metric-label">Hazard</div>
+              <div class="metric-value" id="analysis-result-type">Pending</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Priority</div>
+              <div class="metric-value" id="analysis-result-priority">Pending</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Severity</div>
+              <div class="metric-value" id="analysis-result-severity">Pending</div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <a class="button secondary" id="analysis-detail-link" href="/incident">Open incident details</a>
+            <a class="button secondary" id="analysis-iot-link" href="/iot-monitor">Open IoT monitor</a>
+            <a class="button ghost" id="analysis-reports-link" href="/reports">Open reports</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="app-footer"></div>
+  </div>
+
+  <script type="module">
+    import { initShell } from "/static/js/app-shell.js";
+    import { initAnalysisPage } from "/static/js/pages/analysis.js";
+
+    await initShell("analysis");
+    initAnalysisPage();
+  </script>
+</body>
+</html>

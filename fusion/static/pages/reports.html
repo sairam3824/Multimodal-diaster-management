@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reports | Multimodal Disaster Intelligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/base.css"/>
+</head>
+<body>
+  <div class="site-shell">
+    <div id="app-header"></div>
+
+    <main class="page">
+      <section class="page-hero">
+        <div class="eyebrow">Reports</div>
+        <h1 class="hero-title">Saved incident history, structured review, and export-ready analysis records.</h1>
+        <p class="hero-copy">
+          Every run from New Analysis is stored locally in the workspace browser state.
+          Use this page to reopen cases, compare alerts, and export the record set.
+        </p>
+        <div class="hero-actions">
+          <button class="button secondary" id="reports-export" type="button">Export JSON</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="grid-three">
+          <div class="metric-card">
+            <div class="metric-label">Saved reports</div>
+            <div class="metric-value" id="reports-count">0</div>
+            <div class="metric-note">Total analyses currently available in browser storage.</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Workflow</div>
+            <div class="metric-note">Open any row below to jump directly into its Incident Details page.</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Persistence</div>
+            <div class="metric-note">This history is stored client-side for now and can be exported as JSON.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="reports-list"></section>
+    </main>
+
+    <div id="app-footer"></div>
+  </div>
+
+  <script type="module">
+    import { initShell } from "/static/js/app-shell.js";
+    import { initReportsPage } from "/static/js/pages/reports.js";
+
+    await initShell("reports");
+    initReportsPage();
+  </script>
+</body>
+</html>

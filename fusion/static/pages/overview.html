@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Overview | Multimodal Disaster Intelligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/base.css"/>
+</head>
+<body>
+  <div class="site-shell">
+    <div id="app-header"></div>
+
+    <main class="page">
+      <section class="page-hero">
+        <div class="eyebrow">Overview</div>
+        <h1 class="hero-title">Operational visibility across crisis inputs, sensor fusion, and saved incident records.</h1>
+        <p class="hero-copy">
+          Use this page as the front door to the platform. It surfaces the latest incident state,
+          fast navigation into analysis, and a concise view of what has happened most recently.
+        </p>
+        <div class="hero-actions">
+          <a class="button" href="/analysis">Start new analysis</a>
+          <a class="button secondary" href="/reports">Open reports</a>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <div>
+            <h2>Command summary</h2>
+            <p>Latest fused result, hazard type, response priority, and saved activity.</p>
+          </div>
+        </div>
+        <div class="grid-four">
+          <div class="metric-card" id="overview-alert"></div>
+          <div class="metric-card" id="overview-type"></div>
+          <div class="metric-card" id="overview-priority"></div>
+          <div class="metric-card" id="overview-updated"></div>
+        </div>
+      </section>
+
+      <section class="grid-two">
+        <div class="surface pad">
+          <div class="section-heading">
+            <div>
+              <h2>Recent incident records</h2>
+              <p>The five most recent saved analyses.</p>
+            </div>
+          </div>
+          <div class="list" id="recent-list"></div>
+        </div>
+
+        <div class="surface pad stack">
+          <div class="section-heading">
+            <div>
+              <h2>Workspace flow</h2>
+              <p>Suggested operator flow for the five-page platform.</p>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">1. New analysis</div>
+            <div class="metric-note">Upload evidence, add the public report, and submit optional IoT readings.</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">2. Incident details</div>
+            <div class="metric-note">Review the full fused response, model briefing, and crisis probabilities.</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">3. IoT monitor and reports</div>
+            <div class="metric-note">Inspect sensor weights separately, then save and compare runs in reports.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="app-footer"></div>
+  </div>
+
+  <script type="module">
+    import { initShell } from "/static/js/app-shell.js";
+    import { initOverviewPage } from "/static/js/pages/overview.js";
+
+    await initShell("overview");
+    initOverviewPage();
+  </script>
+</body>
+</html>
