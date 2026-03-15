@@ -17,6 +17,7 @@ Run:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import os
 import sys
@@ -24,6 +25,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional, Dict, Any
+from uuid import uuid4
 
 import torch
 import torch.nn.functional as F
@@ -31,7 +33,7 @@ import numpy as np
 from PIL import Image
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -53,13 +55,18 @@ from fusion.xai import GradCAMViT, generate_openai_summary
 # ─────────────────────────────────────────────
 state: dict = {}
 STATIC_DIR  = Path(__file__).parent / "static"
+PAGES_DIR   = STATIC_DIR / "pages"
+JOB_UPLOAD_DIR = Path("/tmp/fusion_analysis_jobs")
 STATIC_DIR.mkdir(exist_ok=True)
+JOB_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[Server] Initializing Disaster Response Pipeline…")
     state["pipeline"] = DisasterPipeline(load_crisis_model=True)
+    state["analysis_lock"] = asyncio.Lock()
+    state["jobs"] = {}
     # Set up Grad-CAM if crisis model loaded
     pipe = state["pipeline"]
     if pipe._crisis_model is not None:
@@ -95,19 +102,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if (STATIC_DIR / "index.html").exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 # ─────────────────────────────────────────────
 # Routes
 # ─────────────────────────────────────────────
+def _page_response(filename: str) -> FileResponse:
+    html = PAGES_DIR / filename
+    if not html.exists():
+        raise HTTPException(404, f"Page not found: {filename}")
+    return FileResponse(str(html))
+
+
 @app.get("/")
 async def root():
-    html = STATIC_DIR / "index.html"
-    if html.exists():
-        return FileResponse(str(html))
-    return JSONResponse({"message": "Unified Disaster Response API v1.0"})
+    return RedirectResponse(url="/overview", status_code=302)
+
+
+@app.get("/overview")
+async def overview_page():
+    return _page_response("overview.html")
+
+
+@app.get("/analysis")
+async def analysis_page():
+    return _page_response("analysis.html")
+
+
+@app.get("/incident")
+async def incident_page():
+    return _page_response("incident.html")
+
+
+@app.get("/iot-monitor")
+async def iot_monitor_page():
+    return _page_response("iot-monitor.html")
+
+
+@app.get("/reports")
+async def reports_page():
+    return _page_response("reports.html")
 
 
 @app.get("/health")
@@ -119,7 +154,169 @@ async def health():
                         and state["pipeline"]._crisis_model is not None,
         "iot_model":    "iot_model.pth loaded"
                         if "pipeline" in state else "not loaded",
+        "background_jobs": len(state.get("jobs", {})),
     }
+
+
+def _build_sensor_kwargs(**values: Any) -> Dict[str, Any]:
+    return {k: v for k, v in values.items() if v is not None}
+
+
+def _run_analysis_sync(
+    *,
+    image_path: str,
+    tweet: str,
+    sensor_kwargs: Dict[str, Any],
+) -> Dict[str, Any]:
+    if "pipeline" not in state:
+        raise HTTPException(503, "Pipeline not ready")
+
+    t0 = time.perf_counter()
+    result = state["pipeline"].analyze(
+        image_path=image_path,
+        tweet=tweet,
+        **sensor_kwargs,
+    )
+
+    gradcam_b64 = ""
+    if "gradcam" in state:
+        try:
+            pipe = state["pipeline"]
+            img_pil = Image.open(image_path).convert("RGB")
+            img_t = pipe.IMG_TRANSFORM(img_pil).unsqueeze(0).to(pipe.device)
+            enc = pipe._crisis_tokenizer(
+                tweet, max_length=128, padding="max_length",
+                truncation=True, return_tensors="pt"
+            )
+            gradcam_b64 = state["gradcam"].compute(
+                img_t,
+                enc["input_ids"].to(pipe.device),
+                enc["attention_mask"].to(pipe.device),
+                img_pil,
+            )
+        except Exception as e:
+            print(f"[Server] Grad-CAM skipped: {e}")
+
+    elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    response_dict = {
+        "alert_level":    result.alert_level,
+        "disaster_type":  result.confirmed_type,
+        "priority":       result.priority,
+        "fused_severity": round(result.fused_severity, 4),
+        "iot": {
+            "type":          result.iot_disaster_type,
+            "fire_prob":     round(result.iot_fire_prob, 4),
+            "storm_cat":     round(result.iot_storm_cat, 4),
+            "eq_magnitude":  round(result.iot_eq_magnitude, 4),
+            "flood_risk":    round(result.iot_flood_risk, 4),
+            "casualty_risk": round(result.iot_casualty_risk, 4),
+            "sensor_weights": {k: round(v, 4) for k, v in result.iot_sensor_weights.items()},
+        },
+        "crisis": {
+            "category":      result.crisis_category,
+            "confidence":    round(result.crisis_confidence, 4),
+            "vision_weight": round(result.vision_weight, 4),
+            "text_weight":   round(result.text_weight, 4),
+        },
+        "fusion": {
+            "population_impact": round(result.population_impact, 4),
+            "resource_needs":    {k: round(v, 4) for k, v in result.resource_needs.items()},
+        },
+    }
+    xai_summary = generate_openai_summary(response_dict, state.get("openai_key", ""))
+
+    return {
+        "alert_level":     result.alert_level,
+        "summary":         result.summary,
+        "disaster_type":   result.confirmed_type,
+        "priority":        result.priority,
+        "fused_severity":  round(result.fused_severity, 4),
+        "iot": {
+            "type":           result.iot_disaster_type,
+            "fire_prob":      round(result.iot_fire_prob, 4),
+            "storm_cat":      round(result.iot_storm_cat, 4),
+            "eq_magnitude":   round(result.iot_eq_magnitude, 4),
+            "flood_risk":     round(result.iot_flood_risk, 4),
+            "casualty_risk":  round(result.iot_casualty_risk, 4),
+            "severity":       round(result.iot_severity, 4),
+            "sensor_weights": {k: round(v, 4) for k, v in result.iot_sensor_weights.items()},
+        },
+        "crisis": {
+            "category":      result.crisis_category,
+            "confidence":    round(result.crisis_confidence, 4),
+            "probabilities": {k: round(v, 4) for k, v in result.crisis_probs.items()},
+            "vision_weight": round(result.vision_weight, 4),
+            "text_weight":   round(result.text_weight, 4),
+        },
+        "fusion": {
+            "priority_probs":    {k: round(v, 4) for k, v in result.priority_probs.items()},
+            "type_probs":        {k: round(v, 4) for k, v in result.type_probs.items()},
+            "population_impact": round(result.population_impact, 4),
+            "resource_needs":    {k: round(v, 4) for k, v in result.resource_needs.items()},
+        },
+        "xai": {
+            "gradcam_b64": gradcam_b64,
+            "summary":     xai_summary,
+        },
+        "inference_ms": elapsed_ms,
+    }
+
+
+async def _execute_analysis(
+    *,
+    image_path: str,
+    tweet: str,
+    sensor_kwargs: Dict[str, Any],
+) -> Dict[str, Any]:
+    async with state["analysis_lock"]:
+        return await asyncio.to_thread(
+            _run_analysis_sync,
+            image_path=image_path,
+            tweet=tweet,
+            sensor_kwargs=sensor_kwargs,
+        )
+
+
+async def _run_background_job(
+    *,
+    job_id: str,
+    image_path: str,
+    tweet: str,
+    sensor_kwargs: Dict[str, Any],
+) -> None:
+    jobs = state["jobs"]
+    jobs[job_id]["status"] = "running"
+    jobs[job_id]["updated_at"] = time.time()
+
+    try:
+        result = await _execute_analysis(
+            image_path=image_path,
+            tweet=tweet,
+            sensor_kwargs=sensor_kwargs,
+        )
+        jobs[job_id]["status"] = "completed"
+        jobs[job_id]["updated_at"] = time.time()
+        jobs[job_id]["completed_at"] = time.time()
+        jobs[job_id]["result"] = result
+    except Exception as e:
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["updated_at"] = time.time()
+        jobs[job_id]["error"] = str(e)
+    finally:
+        try:
+            os.remove(image_path)
+        except Exception:
+            pass
+
+
+async def _save_upload_to_job_file(image: UploadFile) -> str:
+    suffix = Path(image.filename or "upload.jpg").suffix or ".jpg"
+    tmp_path = JOB_UPLOAD_DIR / f"{uuid4().hex}{suffix}"
+    img_bytes = await image.read()
+    with open(tmp_path, "wb") as f:
+        f.write(img_bytes)
+    return str(tmp_path)
 
 
 @app.post("/analyze")
@@ -148,128 +345,104 @@ async def analyze(
     ndvi:                Optional[float] = Form(None),
     ndwi:                Optional[float] = Form(None),
 ):
-    if "pipeline" not in state:
-        raise HTTPException(503, "Pipeline not ready")
-
-    # Save uploaded image to temp file
-    img_bytes = await image.read()
-    tmp_path  = f"/tmp/crisis_upload_{int(time.time())}.jpg"
-    with open(tmp_path, "wb") as f:
-        f.write(img_bytes)
-
-    # Build sensor kwargs — only include fields the user actually submitted
-    _all_sensor: Dict[str, Any] = {
-        "lat": lat, "lon": lon,
-        "max_temp": max_temp, "min_temp": min_temp,
-        "avg_wind_speed": avg_wind_speed, "precipitation": precipitation,
-        "month": month,
-        "wind_kts": wind_kts, "pressure": pressure,
-        "depth": depth,
-        "elevation_m": elevation_m, "distance_to_river_m": distance_to_river_m,
-        "rainfall_7d": rainfall_7d, "monthly_rainfall": monthly_rainfall,
-        "drainage_index": drainage_index, "ndvi": ndvi, "ndwi": ndwi,
-    }
-    sensor_kwargs = {k: v for k, v in _all_sensor.items() if v is not None}
-
-    t0 = time.perf_counter()
+    sensor_kwargs = _build_sensor_kwargs(
+        lat=lat, lon=lon,
+        max_temp=max_temp, min_temp=min_temp,
+        avg_wind_speed=avg_wind_speed, precipitation=precipitation,
+        month=month,
+        wind_kts=wind_kts, pressure=pressure,
+        depth=depth,
+        elevation_m=elevation_m, distance_to_river_m=distance_to_river_m,
+        rainfall_7d=rainfall_7d, monthly_rainfall=monthly_rainfall,
+        drainage_index=drainage_index, ndvi=ndvi, ndwi=ndwi,
+    )
+    tmp_path = await _save_upload_to_job_file(image)
     try:
-        result = state["pipeline"].analyze(
-            image_path = tmp_path,
-            tweet      = tweet,
-            **sensor_kwargs,
+        result = await _execute_analysis(
+            image_path=tmp_path,
+            tweet=tweet,
+            sensor_kwargs=sensor_kwargs,
         )
-
-        # ── Grad-CAM ──────────────────────────────────────────────────────
-        gradcam_b64 = ""
-        if "gradcam" in state:
-            try:
-                pipe    = state["pipeline"]
-                img_pil = Image.open(tmp_path).convert("RGB")
-                img_t   = pipe.IMG_TRANSFORM(img_pil).unsqueeze(0).to(pipe.device)
-                enc     = pipe._crisis_tokenizer(
-                    tweet, max_length=128, padding="max_length",
-                    truncation=True, return_tensors="pt"
-                )
-                gradcam_b64 = state["gradcam"].compute(
-                    img_t,
-                    enc["input_ids"].to(pipe.device),
-                    enc["attention_mask"].to(pipe.device),
-                    img_pil,
-                )
-            except Exception as e:
-                print(f"[Server] Grad-CAM skipped: {e}")
-
     finally:
         try:
             os.remove(tmp_path)
         except Exception:
             pass
 
-    elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+    return JSONResponse(result)
 
-    # Build response dict for OpenAI summary
-    response_dict = {
-        "alert_level":    result.alert_level,
-        "disaster_type":  result.confirmed_type,
-        "priority":       result.priority,
-        "fused_severity": round(result.fused_severity, 4),
-        "iot": {
-            "type":          result.iot_disaster_type,
-            "fire_prob":     round(result.iot_fire_prob, 4),
-            "storm_cat":     round(result.iot_storm_cat, 4),
-            "eq_magnitude":  round(result.iot_eq_magnitude, 4),
-            "flood_risk":    round(result.iot_flood_risk, 4),
-            "casualty_risk": round(result.iot_casualty_risk, 4),
-            "sensor_weights": {k: round(v, 4) for k, v in result.iot_sensor_weights.items()},
-        },
-        "crisis": {
-            "category":      result.crisis_category,
-            "confidence":    round(result.crisis_confidence, 4),
-            "vision_weight": round(result.vision_weight, 4),
-            "text_weight":   round(result.text_weight, 4),
-        },
-        "fusion": {
-            "population_impact": round(result.population_impact, 4),
-            "resource_needs":    {k: round(v, 4) for k, v in result.resource_needs.items()},
-        },
+
+@app.post("/analysis/jobs")
+async def create_analysis_job(
+    image:         UploadFile = File(...),
+    tweet:         str        = Form(...),
+    lat:           Optional[float] = Form(None),
+    lon:           Optional[float] = Form(None),
+    max_temp:          Optional[float] = Form(None),
+    min_temp:          Optional[float] = Form(None),
+    avg_wind_speed:    Optional[float] = Form(None),
+    precipitation:     Optional[float] = Form(None),
+    month:             Optional[int]   = Form(None),
+    wind_kts:      Optional[float] = Form(None),
+    pressure:      Optional[float] = Form(None),
+    depth:         Optional[float] = Form(None),
+    elevation_m:         Optional[float] = Form(None),
+    distance_to_river_m: Optional[float] = Form(None),
+    rainfall_7d:         Optional[float] = Form(None),
+    monthly_rainfall:    Optional[float] = Form(None),
+    drainage_index:      Optional[float] = Form(None),
+    ndvi:                Optional[float] = Form(None),
+    ndwi:                Optional[float] = Form(None),
+):
+    if "pipeline" not in state:
+        raise HTTPException(503, "Pipeline not ready")
+
+    sensor_kwargs = _build_sensor_kwargs(
+        lat=lat, lon=lon,
+        max_temp=max_temp, min_temp=min_temp,
+        avg_wind_speed=avg_wind_speed, precipitation=precipitation,
+        month=month,
+        wind_kts=wind_kts, pressure=pressure,
+        depth=depth,
+        elevation_m=elevation_m, distance_to_river_m=distance_to_river_m,
+        rainfall_7d=rainfall_7d, monthly_rainfall=monthly_rainfall,
+        drainage_index=drainage_index, ndvi=ndvi, ndwi=ndwi,
+    )
+    image_path = await _save_upload_to_job_file(image)
+    created_at = time.time()
+    job_id = uuid4().hex
+    state["jobs"][job_id] = {
+        "job_id": job_id,
+        "status": "queued",
+        "created_at": created_at,
+        "updated_at": created_at,
+        "result": None,
+        "error": None,
     }
-    xai_summary = generate_openai_summary(response_dict, state.get("openai_key", ""))
+
+    asyncio.create_task(
+        _run_background_job(
+            job_id=job_id,
+            image_path=image_path,
+            tweet=tweet,
+            sensor_kwargs=sensor_kwargs,
+        )
+    )
 
     return JSONResponse({
-        "alert_level":     result.alert_level,
-        "summary":         result.summary,
-        "disaster_type":   result.confirmed_type,
-        "priority":        result.priority,
-        "fused_severity":  round(result.fused_severity, 4),
-        "iot": {
-            "type":           result.iot_disaster_type,
-            "fire_prob":      round(result.iot_fire_prob, 4),
-            "storm_cat":      round(result.iot_storm_cat, 4),
-            "eq_magnitude":   round(result.iot_eq_magnitude, 4),
-            "flood_risk":     round(result.iot_flood_risk, 4),
-            "casualty_risk":  round(result.iot_casualty_risk, 4),
-            "severity":       round(result.iot_severity, 4),
-            "sensor_weights": {k: round(v, 4) for k, v in result.iot_sensor_weights.items()},
-        },
-        "crisis": {
-            "category":     result.crisis_category,
-            "confidence":   round(result.crisis_confidence, 4),
-            "probabilities": {k: round(v, 4) for k, v in result.crisis_probs.items()},
-            "vision_weight": round(result.vision_weight, 4),
-            "text_weight":   round(result.text_weight, 4),
-        },
-        "fusion": {
-            "priority_probs":    {k: round(v, 4) for k, v in result.priority_probs.items()},
-            "type_probs":        {k: round(v, 4) for k, v in result.type_probs.items()},
-            "population_impact": round(result.population_impact, 4),
-            "resource_needs":    {k: round(v, 4) for k, v in result.resource_needs.items()},
-        },
-        "xai": {
-            "gradcam_b64": gradcam_b64,
-            "summary":     xai_summary,
-        },
-        "inference_ms": elapsed_ms,
+        "job_id": job_id,
+        "status": "queued",
+        "created_at": created_at,
+        "updated_at": created_at,
     })
+
+
+@app.get("/analysis/jobs/{job_id}")
+async def get_analysis_job(job_id: str):
+    job = state.get("jobs", {}).get(job_id)
+    if not job:
+        raise HTTPException(404, "Analysis job not found")
+    return JSONResponse(job)
 
 
 @app.post("/iot/predict")
