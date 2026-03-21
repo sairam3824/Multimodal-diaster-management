@@ -17,10 +17,14 @@ export function formatDateTime(value){
     return "No recent activity";
   }
 
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
+  try{
+    return new Intl.DateTimeFormat("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }).format(new Date(value));
+  }catch{
+    return new Date(value).toLocaleString();
+  }
 }
 
 export function priorityTone(priority){
