@@ -48,7 +48,7 @@ class IoTPredictor:
             )
         # Import model class from training module
         from IOT.train_iot import AdaptiveIoTClassifier
-        ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+        ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
         cfg  = ckpt["config"]
 
         self.model = AdaptiveIoTClassifier(
@@ -65,6 +65,11 @@ class IoTPredictor:
     @torch.no_grad()
     def predict_from_features(self, features: list) -> IoTPrediction:
         """Run inference on a 32-dim sensor feature vector."""
+        if len(features) != 32:
+            raise ValueError(
+                f"Expected 32-dim feature vector, got {len(features)}-dim. "
+                "Check feature extraction function output."
+            )
         x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)  # [1, 32]
         dis_logits, severity, risk, casualty, emb, attn = self.model(x, return_attention=True)
 
