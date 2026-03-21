@@ -39,6 +39,7 @@ CRISIS_DIR   = os.path.join(os.path.dirname(__file__), "..", "crisis")
 FUSION_MODEL = os.path.join(os.path.dirname(__file__), "fusion_model.pth")
 IOT_EMB_DIM  = 128
 CRISIS_DIM   = 1024    # 512 (vision) + 512 (text) from AdaptiveFusionClassifier
+INPUT_SIZE   = (224, 224)
 
 CRISIS_CLASSES = [
     "affected_individuals",
@@ -123,8 +124,11 @@ class DisasterAssessment:
         return "\n".join(lines)
 
 
+_PRIORITY_SCORE = {"Low": 0, "Medium": 1, "High": 2, "Critical": 3}
+
+
 def _alert_level(severity: float, priority: str) -> str:
-    pri_idx = PRIORITY_LABELS.index(priority) if priority in PRIORITY_LABELS else 0
+    pri_idx = _PRIORITY_SCORE.get(priority, 0)
     score   = (severity + pri_idx / 3.0) / 2
     if score >= 0.75: return "RED"
     if score >= 0.5:  return "ORANGE"
@@ -132,11 +136,72 @@ def _alert_level(severity: float, priority: str) -> str:
     return "GREEN"
 
 
+_DISASTER_KEYWORDS = {
+    "fire": ["fire", "wildfire", "blaze", "burning", "arson", "smoke", "flames",
+             "bushfire", "forest fire", "inferno", "charred", "ember", "burnt",
+             "scorched", "ash"],
+    "storm": ["storm", "hurricane", "typhoon", "cyclone", "tornado",
+              "irma", "harvey", "maria", "dorian", "katrina", "ian",
+              "sandy", "helene", "haiyan", "matthew",
+              "tropical storm", "tropical depression",
+              "blown", "ripped", "uprooted",
+              "power outage", "powerline"],
+    "earthquake": ["earthquake", "quake", "seismic", "tremor", "aftershock",
+                   "magnitude", "richter", "epicenter", "collapsed", "rubble",
+                   "crumbled", "shaking", "fault line"],
+    "flood": ["flood", "flooding", "submerged", "inundation", "deluge",
+              "water level", "overflow", "flash flood", "waterlogged",
+              "underwater", "washed away", "rising water", "levee"],
+}
+
+# Generic damage words that apply to storm/hurricane contexts
+# These boost storm score only when combined with other signals
+_STORM_CONTEXTUAL = ["damage", "damaged", "destruction", "destroyed", "debris",
+                     "wreckage", "demolished", "devastat", "wind", "winds",
+                     "gust", "rooftop", "roof", "trees down", "category"]
+
+
+def _infer_disaster_type_from_text(tweet: str, caption: str = "") -> str:
+    """Infer disaster type from tweet text + optional BLIP image caption.
+    Uses keyword matching with contextual scoring.
+    The caption provides visual context the text alone may lack."""
+    # Combine tweet and caption for richer signal
+    combined = f"{tweet} {caption}".lower()
+    scores = {"fire": 0, "storm": 0, "earthquake": 0, "flood": 0}
+
+    for disaster, keywords in _DISASTER_KEYWORDS.items():
+        for kw in keywords:
+            if kw in combined:
+                scores[disaster] += 2  # Strong keyword = 2 points
+
+    # Contextual storm words: only count as storm if no other type dominates
+    storm_contextual_hits = sum(1 for kw in _STORM_CONTEXTUAL if kw in combined)
+    scores["storm"] += storm_contextual_hits  # 1 point each (weaker signal)
+
+    max_score = max(scores.values())
+    if max_score == 0:
+        return "unknown"
+
+    # Resolve ties: prefer the type with more strong keyword hits
+    top_types = [t for t, s in scores.items() if s == max_score]
+    if len(top_types) == 1:
+        return top_types[0]
+
+    # Tie-breaking: count only strong keywords (from _DISASTER_KEYWORDS)
+    strong = {}
+    for t in top_types:
+        strong[t] = sum(2 for kw in _DISASTER_KEYWORDS[t] if kw in combined)
+    return max(strong, key=strong.get)
+
+
 def _summary(a: DisasterAssessment, iot_available: bool = True) -> str:
     if not iot_available:
+        type_note = ""
+        if a.confirmed_type != "unknown":
+            type_note = f" Inferred hazard: {a.confirmed_type}."
         return (
             f"No sensor data provided. Social media analysis: '{a.crisis_category}' "
-            f"({a.crisis_confidence:.0%} confidence). Priority: {a.priority}."
+            f"({a.crisis_confidence:.1%} confidence).{type_note} Priority: {a.priority}."
         )
     parts = []
     if a.iot_fire_prob > 0.5:
@@ -153,7 +218,7 @@ def _summary(a: DisasterAssessment, iot_available: bool = True) -> str:
 
 class DisasterPipeline:
     IMG_TRANSFORM = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize(INPUT_SIZE),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
@@ -189,12 +254,19 @@ class DisasterPipeline:
             sys.path.insert(0, CRISIS_DIR)
             from server import AdaptiveFusionClassifier
             from transformers import (
-                BlipForConditionalGeneration, XLMRobertaTokenizer, XLMRobertaModel
+                BlipForConditionalGeneration, BlipProcessor,
+                XLMRobertaTokenizer, XLMRobertaModel,
             )
             print("[Pipeline] Loading BLIP + XLM-RoBERTa…")
             blip  = BlipForConditionalGeneration.from_pretrained(
                 "Salesforce/blip-image-captioning-base"
             )
+            # Keep full BLIP model for captioning (used in hazard inference)
+            self._blip_captioner = blip
+            self._blip_processor = BlipProcessor.from_pretrained(
+                "Salesforce/blip-image-captioning-base"
+            )
+
             xlm_tok   = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
             xlm_model = XLMRobertaModel.from_pretrained("xlm-roberta-base")
             model = AdaptiveFusionClassifier(
@@ -202,15 +274,43 @@ class DisasterPipeline:
                 hidden_dim=512, n_classes=len(CRISIS_CLASSES)
             )
             ckpt_path = os.path.join(CRISIS_DIR, "best_adaptive_model.pth")
-            ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=False)
+            try:
+                ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=True)
+            except Exception:
+                print("[Pipeline] Warning: weights_only=True failed for crisis checkpoint, using unsafe load")
+                ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=False)
             sd   = ckpt.get("model_state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
             model.load_state_dict(sd, strict=False)
             model.to(self.device).eval()
             self._crisis_model     = model
             self._crisis_tokenizer = xlm_tok
-            print("[Pipeline] Crisis model ready.")
+            print("[Pipeline] Crisis model ready (with BLIP captioning).")
         except Exception as e:
             print(f"[Pipeline] WARNING: Could not load crisis model: {e}")
+            self._blip_captioner = None
+            self._blip_processor = None
+
+    def _generate_caption(self, image_path: str) -> str:
+        """Generate an image caption using BLIP for visual disaster type inference."""
+        if self._blip_captioner is None or self._blip_processor is None:
+            return ""
+        try:
+            img = Image.open(image_path).convert("RGB")
+            inputs = self._blip_processor(
+                images=img,
+                text="a photograph of",
+                return_tensors="pt"
+            ).to(self.device)
+            with torch.no_grad():
+                out = self._blip_captioner.generate(
+                    **inputs, max_new_tokens=50, num_beams=3
+                )
+            caption = self._blip_processor.decode(out[0], skip_special_tokens=True)
+            print(f"[Pipeline] BLIP caption: {caption}")
+            return caption
+        except Exception as e:
+            print(f"[Pipeline] Caption generation failed: {e}")
+            return ""
 
     def _run_crisis(self, image_path: str, tweet: str):
         if self._crisis_model is None:
@@ -221,8 +321,9 @@ class DisasterPipeline:
         try:
             img   = Image.open(image_path).convert("RGB")
             img_t = self.IMG_TRANSFORM(img).unsqueeze(0).to(self.device)
-        except Exception:
-            img_t = torch.zeros(1, 3, 224, 224).to(self.device)
+        except Exception as e:
+            print(f"[Pipeline] Warning: failed to load image {image_path}: {e}")
+            img_t = torch.zeros(1, 3, *INPUT_SIZE).to(self.device)
 
         enc   = self._crisis_tokenizer(
             tweet, max_length=128, padding="max_length",
@@ -240,7 +341,10 @@ class DisasterPipeline:
             vis_proj = self._crisis_model.vision_proj(vis_feat)   # [1, 512]
             txt_proj = self._crisis_model.text_proj(txt_feat)     # [1, 512]
             emb      = torch.cat([vis_proj, txt_proj], dim=1).squeeze(0)  # [1024]
-            probs_t  = F.softmax(logits, dim=-1).squeeze(0).cpu()
+            # Temperature scaling to prevent overconfident predictions
+            # Higher temperature → more distributed probabilities (avoids 100% / 0.0%)
+            temperature = 2.5
+            probs_t  = F.softmax(logits / temperature, dim=-1).squeeze(0).cpu()
             probs    = {CRISIS_CLASSES[i]: float(probs_t[i]) for i in range(len(CRISIS_CLASSES))}
             vis_w    = float(attn["vision_weight"].cpu().item())
             txt_w    = float(attn["text_weight"].cpu().item())
@@ -406,10 +510,23 @@ class DisasterPipeline:
                 "rescue_volunteering_or_donation_effort": "Critical",
                 "missing_or_found_people":                "Critical",
             }
+            # Category-specific severity multipliers — severe categories
+            # should produce higher severity even without sensor data
+            _CRISIS_SEVERITY_SCALE = {
+                "not_humanitarian":                       0.0,
+                "other_relevant_information":             0.25,
+                "vehicle_damage":                         0.50,
+                "affected_individuals":                   0.80,
+                "infrastructure_and_utility_damage":      0.90,
+                "rescue_volunteering_or_donation_effort": 0.95,
+                "missing_or_found_people":                0.95,
+            }
             priority  = crisis_to_priority.get(top_crisis, "Low")
-            conf_type = "unknown"
-            if top_crisis != "not_humanitarian":
-                fused_sev = top_conf * 0.4
+            # Generate image caption for visual context in hazard inference
+            caption = self._generate_caption(image_path)
+            conf_type = _infer_disaster_type_from_text(tweet, caption)
+            sev_scale = _CRISIS_SEVERITY_SCALE.get(top_crisis, 0.4)
+            fused_sev = top_conf * sev_scale
 
             iot_disaster_type  = "unknown"
             iot_type_probs     = {d: 0.2 for d in DISASTER_LABELS}
