@@ -86,8 +86,8 @@ async function syncPendingJobs(){
           updatedAt: status.updated_at || new Date().toISOString()
         });
       }
-    }catch{
-      // Keep the pending job and try again on the next sync cycle.
+    }catch(err){
+      console.warn(`[sync] Job ${job.jobId} fetch failed, will retry:`, err.message);
     }
   }));
 }
