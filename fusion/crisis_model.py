@@ -23,6 +23,7 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 
+INPUT_SIZE  = (224, 224)
 CRISIS_ROOT = os.path.join(os.path.dirname(__file__), "..", "crisis", "CrisisMMD_v2.0")
 SPLITS_DIR  = os.path.join(CRISIS_ROOT, "crisismmd_datasplit_all", "crisismmd_datasplit_all")
 
@@ -61,7 +62,7 @@ TASK_CONFIGS = {
 # ─────────────────────────────────────────────
 class CrisisDataset(Dataset):
     IMG_TRANSFORMS = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize(INPUT_SIZE),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
@@ -69,6 +70,7 @@ class CrisisDataset(Dataset):
 
     def __init__(self, tsv_path: str, task: str, max_length: int = 128):
         cfg = TASK_CONFIGS[task]
+        self._task       = task
         self.crisis_root = CRISIS_ROOT
         self.max_length  = max_length
 
@@ -110,8 +112,9 @@ class CrisisDataset(Dataset):
         try:
             img = Image.open(img_path).convert("RGB")
             img = self.IMG_TRANSFORMS(img)
-        except Exception:
-            img = torch.zeros(3, 224, 224)
+        except Exception as e:
+            print(f"[CrisisDataset] Warning: failed to load image {img_path}: {e}")
+            img = torch.zeros(3, *INPUT_SIZE)
 
         # ── Label ──
         label = self.label2idx[row[TASK_CONFIGS[self._task]["label_col"]]]
@@ -127,9 +130,7 @@ class CrisisDataset(Dataset):
 def make_dataset(task: str, split: str = "train") -> CrisisDataset:
     cfg    = TASK_CONFIGS[task]
     tsv    = os.path.join(SPLITS_DIR, cfg[split])
-    ds     = CrisisDataset(tsv, task)
-    ds._task = task
-    return ds
+    return CrisisDataset(tsv, task)
 
 
 # ─────────────────────────────────────────────
