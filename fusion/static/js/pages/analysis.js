@@ -50,14 +50,47 @@ function clearError(){
   document.getElementById("analysis-error").style.display = "none";
 }
 
+const SENSOR_RANGES = {
+  lat:                 { min: -90,   max: 90,    label: "Latitude" },
+  lon:                 { min: -180,  max: 180,   label: "Longitude" },
+  precipitation:       { min: 0,     max: 1000,  label: "Precipitation" },
+  max_temp:            { min: -60,   max: 60,    label: "Max temperature" },
+  min_temp:            { min: -80,   max: 55,    label: "Min temperature" },
+  avg_wind_speed:      { min: 0,     max: 200,   label: "Wind speed" },
+  month:               { min: 1,     max: 12,    label: "Month" },
+  wind_kts:            { min: 0,     max: 250,   label: "Wind (knots)" },
+  pressure:            { min: 850,   max: 1100,  label: "Pressure (hPa)" },
+  depth:               { min: 0,     max: 800,   label: "Depth (km)" },
+  elevation_m:         { min: -500,  max: 9000,  label: "Elevation (m)" },
+  distance_to_river_m: { min: 0,     max: 100000,label: "Distance to river (m)" },
+  rainfall_7d:         { min: 0,     max: 2000,  label: "Rainfall 7-day (mm)" },
+  monthly_rainfall:    { min: 0,     max: 3000,  label: "Monthly rainfall (mm)" },
+  ndvi:                { min: -1,    max: 1,     label: "NDVI" },
+  ndwi:                { min: -1,    max: 1,     label: "NDWI" },
+};
+
 function collectSensorInput(){
   const sensors = {};
+  const errors = [];
   Object.entries(FIELD_MAP).forEach(([key, id]) => {
-    const value = document.getElementById(id).value;
-    if(value !== ""){
-      sensors[key] = value;
+    const raw = document.getElementById(id).value;
+    if(raw !== ""){
+      const num = parseFloat(raw);
+      if(isNaN(num)){
+        errors.push(`${SENSOR_RANGES[key]?.label || key}: must be a number`);
+        return;
+      }
+      const range = SENSOR_RANGES[key];
+      if(range && (num < range.min || num > range.max)){
+        errors.push(`${range.label}: must be between ${range.min} and ${range.max}`);
+        return;
+      }
+      sensors[key] = num;
     }
   });
+  if(errors.length > 0){
+    throw new Error("Sensor validation errors:\n" + errors.join("\n"));
+  }
   return sensors;
 }
 
@@ -195,11 +228,17 @@ export function initAnalysisPage(){
       return;
     }
 
+    let sensors;
+    try{
+      sensors = collectSensorInput();
+    }catch(validationError){
+      showError(validationError.message);
+      return;
+    }
+
     const formData = new FormData();
     formData.append("image", selectedFile);
     formData.append("tweet", tweetInput.value.trim());
-
-    const sensors = collectSensorInput();
     Object.entries(sensors).forEach(([key, value]) => formData.append(key, value));
 
     try{
