@@ -29,9 +29,9 @@ from uuid import uuid4
 
 import torch
 import torch.nn.functional as F
-import numpy as np
+from collections import defaultdict
 from PIL import Image
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -57,8 +57,46 @@ state: dict = {}
 STATIC_DIR  = Path(__file__).parent / "static"
 PAGES_DIR   = STATIC_DIR / "pages"
 JOB_UPLOAD_DIR = Path("/tmp/fusion_analysis_jobs")
+JOBS_STORE_FILE = Path(__file__).parent / ".jobs_store.json"
 STATIC_DIR.mkdir(exist_ok=True)
 JOB_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ─────────────────────────────────────────────
+# Disk-backed job persistence
+# ─────────────────────────────────────────────
+import json
+
+def _load_jobs_from_disk() -> dict:
+    """Load persisted jobs from disk on startup."""
+    if not JOBS_STORE_FILE.exists():
+        return {}
+    try:
+        data = json.loads(JOBS_STORE_FILE.read_text())
+        # Only keep completed/failed jobs (running jobs can't resume)
+        kept = {}
+        for job_id, job in data.items():
+            if job.get("status") in ("completed", "failed"):
+                kept[job_id] = job
+            else:
+                # Mark orphaned running/queued jobs as failed
+                job["status"] = "failed"
+                job["error"] = "Server restarted before job completed"
+                job["updated_at"] = time.time()
+                kept[job_id] = job
+        return kept
+    except Exception as e:
+        print(f"[Server] Warning: could not load jobs from disk: {e}")
+        return {}
+
+
+def _persist_jobs_to_disk():
+    """Save current jobs dict to disk."""
+    try:
+        jobs = state.get("jobs", {})
+        JOBS_STORE_FILE.write_text(json.dumps(jobs, default=str))
+    except Exception as e:
+        print(f"[Server] Warning: could not persist jobs to disk: {e}")
 
 
 @asynccontextmanager
@@ -66,7 +104,9 @@ async def lifespan(app: FastAPI):
     print("[Server] Initializing Disaster Response Pipeline…")
     state["pipeline"] = DisasterPipeline(load_crisis_model=True)
     state["analysis_lock"] = asyncio.Lock()
-    state["jobs"] = {}
+    state["jobs"] = _load_jobs_from_disk()
+    if state["jobs"]:
+        print(f"[Server] Restored {len(state['jobs'])} jobs from disk.")
     # Set up Grad-CAM if crisis model loaded
     pipe = state["pipeline"]
     if pipe._crisis_model is not None:
@@ -79,7 +119,6 @@ async def lifespan(app: FastAPI):
             traceback.print_exc()
     state["openai_key"] = os.getenv("OPENAI_API_KEY", "")
     print(f"[Server] OpenAI key loaded: {'yes' if state['openai_key'] else 'NO KEY FOUND'}")
-    state["openai_key"] = os.getenv("OPENAI_API_KEY", "")
     print("[Server] Ready.")
     yield
     state.clear()
@@ -95,14 +134,35 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:8001,http://127.0.0.1:8001").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+# ─────────────────────────────────────────────
+# Rate limiting (in-memory, per-client IP)
+# ─────────────────────────────────────────────
+_rate_limit_store: Dict[str, list] = defaultdict(list)
+RATE_LIMIT_MAX = int(os.getenv("RATE_LIMIT_MAX", "10"))       # requests
+RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))  # seconds
+
+
+def _check_rate_limit(request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    timestamps = _rate_limit_store[client_ip]
+    # Purge old entries
+    _rate_limit_store[client_ip] = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+    if len(_rate_limit_store[client_ip]) >= RATE_LIMIT_MAX:
+        raise HTTPException(429, "Too many requests. Please try again later.")
+    _rate_limit_store[client_ip].append(now)
 
 
 # ─────────────────────────────────────────────
@@ -110,6 +170,8 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # ─────────────────────────────────────────────
 def _page_response(filename: str) -> FileResponse:
     html = PAGES_DIR / filename
+    if not html.resolve().is_relative_to(PAGES_DIR.resolve()):
+        raise HTTPException(403, "Access denied")
     if not html.exists():
         raise HTTPException(404, f"Page not found: {filename}")
     return FileResponse(str(html))
@@ -278,6 +340,15 @@ async def _execute_analysis(
         )
 
 
+def _update_job(job_id: str, **updates):
+    """Update job dict fields and persist to disk."""
+    jobs = state["jobs"]
+    if job_id in jobs:
+        jobs[job_id].update(updates)
+        jobs[job_id]["updated_at"] = time.time()
+        _persist_jobs_to_disk()
+
+
 async def _run_background_job(
     *,
     job_id: str,
@@ -285,9 +356,7 @@ async def _run_background_job(
     tweet: str,
     sensor_kwargs: Dict[str, Any],
 ) -> None:
-    jobs = state["jobs"]
-    jobs[job_id]["status"] = "running"
-    jobs[job_id]["updated_at"] = time.time()
+    _update_job(job_id, status="running")
 
     try:
         result = await _execute_analysis(
@@ -295,19 +364,14 @@ async def _run_background_job(
             tweet=tweet,
             sensor_kwargs=sensor_kwargs,
         )
-        jobs[job_id]["status"] = "completed"
-        jobs[job_id]["updated_at"] = time.time()
-        jobs[job_id]["completed_at"] = time.time()
-        jobs[job_id]["result"] = result
+        _update_job(job_id, status="completed", completed_at=time.time(), result=result)
     except Exception as e:
-        jobs[job_id]["status"] = "failed"
-        jobs[job_id]["updated_at"] = time.time()
-        jobs[job_id]["error"] = str(e)
+        _update_job(job_id, status="failed", error=str(e))
     finally:
         try:
             os.remove(image_path)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Server] Warning: failed to clean up {image_path}: {e}")
 
 
 async def _save_upload_to_job_file(image: UploadFile) -> str:
@@ -321,6 +385,7 @@ async def _save_upload_to_job_file(image: UploadFile) -> str:
 
 @app.post("/analyze")
 async def analyze(
+    request:       Request,
     image:         UploadFile = File(...),
     tweet:         str        = Form(...),
     lat:           Optional[float] = Form(None),
@@ -345,6 +410,7 @@ async def analyze(
     ndvi:                Optional[float] = Form(None),
     ndwi:                Optional[float] = Form(None),
 ):
+    _check_rate_limit(request)
     sensor_kwargs = _build_sensor_kwargs(
         lat=lat, lon=lon,
         max_temp=max_temp, min_temp=min_temp,
@@ -366,14 +432,15 @@ async def analyze(
     finally:
         try:
             os.remove(tmp_path)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Server] Warning: failed to clean up {tmp_path}: {e}")
 
     return JSONResponse(result)
 
 
 @app.post("/analysis/jobs")
 async def create_analysis_job(
+    request:       Request,
     image:         UploadFile = File(...),
     tweet:         str        = Form(...),
     lat:           Optional[float] = Form(None),
@@ -394,6 +461,7 @@ async def create_analysis_job(
     ndvi:                Optional[float] = Form(None),
     ndwi:                Optional[float] = Form(None),
 ):
+    _check_rate_limit(request)
     if "pipeline" not in state:
         raise HTTPException(503, "Pipeline not ready")
 
@@ -419,6 +487,7 @@ async def create_analysis_job(
         "result": None,
         "error": None,
     }
+    _persist_jobs_to_disk()
 
     asyncio.create_task(
         _run_background_job(
