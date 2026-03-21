@@ -40,8 +40,14 @@ export function saveAnalysisRecord(input, result, meta = {}){
   if(meta.jobId){
     const existing = getRecordByJobId(meta.jobId);
     if(existing){
+      const history = loadHistory();
+      const idx = history.findIndex(item => item.id === existing.id);
+      if(idx !== -1){
+        history[idx] = { ...existing, input, result, updatedAt: new Date().toISOString() };
+        persistHistory(history);
+      }
       localStorage.setItem(ACTIVE_KEY, existing.id);
-      return existing;
+      return history[idx] || existing;
     }
   }
 
@@ -102,4 +108,10 @@ export function updatePendingJob(jobId, updates){
 export function removePendingJob(jobId){
   const next = loadPending().filter(item => item.jobId !== jobId);
   persistPending(next);
+}
+
+export function clearAllData(){
+  localStorage.removeItem(HISTORY_KEY);
+  localStorage.removeItem(ACTIVE_KEY);
+  localStorage.removeItem(PENDING_KEY);
 }
