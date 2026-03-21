@@ -1,17 +1,21 @@
 """
-XAI Module — Grad-CAM + OpenAI Natural Language Explanation
-=============================================================
+XAI Module — Gradient-weighted Attention Rollout + OpenAI Explanation
+======================================================================
 Two independent components:
 
 1. GradCAMViT
-   Computes Grad-CAM on BLIP's ViT vision encoder inside AdaptiveFusionClassifier.
-   crisis_model.vision_encoder = blip_model.vision_model (BlipVisionModel)
-   Target layer: vision_encoder.encoder.layers[-1]  → [B, 197, 768] (196 patch + 1 CLS)
-   Returns a base64-encoded PNG of the heatmap overlaid on the original image.
+   Combines ViT attention maps with gradient signals to produce accurate
+   heatmaps showing what drives the model's classification decision.
+
+   Method: Gradient-weighted Attention Rollout
+   - Forward pass with output_attentions=True to get attention matrices
+   - Backward pass to get gradients on the attention weights
+   - Weight attention by gradient importance (positive contributions only)
+   - Roll up through last N layers to produce a CLS-to-patch attention map
+   - Overlay as heatmap on the original image
 
 2. generate_openai_summary(result_dict, api_key)
-   Sends the full assessment to GPT-4o.
-   Returns a structured, human-readable explanation for field responders.
+   Sends the full assessment to GPT-4o for a structured field briefing.
 """
 
 from __future__ import annotations
@@ -26,91 +30,244 @@ from PIL import Image
 
 
 # ─────────────────────────────────────────────
-# 1. Grad-CAM for BLIP ViT
+# 1. Gradient-weighted Attention for BLIP ViT
 # ─────────────────────────────────────────────
 
 class GradCAMViT:
     """
-    Hook-based Grad-CAM for BLIP's Vision Transformer encoder
-    inside AdaptiveFusionClassifier (crisis_model.vision_encoder).
+    Gradient-weighted Attention Rollout for BLIP ViT.
 
-    BLIP ViT patch layout:
-      Input  : 224 × 224
-      Patches: 16 × 16 → 14 × 14 spatial grid = 196 patch tokens + 1 CLS
-      Last encoder layer output: [B, 197, 768]
+    Pure attention shows "where the model looks" but not "what matters for
+    the prediction". By weighting attention with gradients, we highlight
+    regions that both receive attention AND influence the final classification.
 
-    We skip CLS, reshape to [14, 14], weight by gradients,
-    then upsample back to 224 × 224 and overlay on the original image.
+    BLIP ViT: 224×224 → 14×14 patches (196 + 1 CLS), 12 encoder layers.
     """
+
+    GRID_SIZE = 14
 
     def __init__(self, crisis_model):
         self.model = crisis_model
 
     def compute(
         self,
-        img_tensor: torch.Tensor,      # [1, 3, 224, 224]
+        img_tensor: torch.Tensor,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         original_pil: Image.Image,
     ) -> str:
-        """
-        Input Gradient Saliency Map overlaid on the original image.
-
-        Why not patch-token Grad-CAM:
-          AdaptiveFusionClassifier only uses the CLS token (index 0) from BLIP ViT.
-          Gradients through the 196 patch tokens are zero → flat CAM.
-
-        Instead we compute d(score)/d(pixel) directly.
-        The gradient flows: score → CLS token → self-attention → ALL patch embeddings
-        → patch projection → input pixels.  This gives a 224×224 saliency map.
-        """
         try:
-            return self._compute_inner(img_tensor, input_ids, attention_mask, original_pil)
+            result = self._compute_gradient_attention(
+                img_tensor, input_ids, attention_mask, original_pil
+            )
+            if result:
+                return result
+            # Fallback: pure attention rollout (no gradients)
+            result = self._compute_attention_only(img_tensor, original_pil)
+            if result:
+                return result
+            # Final fallback: input gradient saliency
+            return self._compute_input_gradient(
+                img_tensor, input_ids, attention_mask, original_pil
+            )
         except Exception as e:
             import traceback
             print(f"[GradCAM] WARNING: {e}")
             traceback.print_exc()
             return ""
 
-    def _compute_inner(self, img_tensor, input_ids, attention_mask, original_pil):
+    def _compute_gradient_attention(self, img_tensor, input_ids, attention_mask, original_pil):
+        """
+        Gradient-weighted Attention Rollout.
+
+        Uses backward hooks to capture gradients on attention weight tensors,
+        then weights attention by clamped-positive gradients to highlight
+        regions that both receive attention AND drive the classification.
+        """
+        vision_enc = getattr(self.model, 'vision_encoder', None)
+        if vision_enc is None:
+            return ""
+
+        self.model.zero_grad()
+
+        # Storage for attention gradients captured via hooks
+        attn_grads = {}
+        hook_handles = []
+
+        def make_grad_hook(layer_idx):
+            def hook(grad):
+                attn_grads[layer_idx] = grad.detach()
+            return hook
+
+        with torch.enable_grad():
+            # Forward: get attention maps from ViT
+            vision_outputs = vision_enc(img_tensor, output_attentions=True)
+            attentions = getattr(vision_outputs, 'attentions', None)
+            if attentions is None or len(attentions) == 0:
+                return ""
+
+            # Register gradient hooks on attention tensors
+            for i, attn_tensor in enumerate(attentions):
+                if attn_tensor.requires_grad:
+                    h = attn_tensor.register_hook(make_grad_hook(i))
+                    hook_handles.append(h)
+
+            # Complete the forward pass through the full model
+            cls_feat = vision_outputs.last_hidden_state[:, 0, :]
+            vis_proj = self.model.vision_proj(cls_feat)
+
+            txt_feat = self.model.text_encoder(
+                input_ids=input_ids, attention_mask=attention_mask
+            ).last_hidden_state[:, 0, :]
+            txt_proj = self.model.text_proj(txt_feat)
+
+            vis_conf = self.model.vision_confidence(cls_feat)
+            txt_conf = self.model.text_confidence(txt_feat)
+            total = vis_conf + txt_conf + 1e-8
+            vis_w = vis_conf / total
+            txt_w = txt_conf / total
+
+            weighted_vis = vis_proj * vis_w
+            weighted_txt = txt_proj * txt_w
+
+            q = weighted_vis.unsqueeze(1)
+            k = weighted_txt.unsqueeze(1)
+            attended_vis, _ = self.model.cross_attention(q, k, k)
+            attended_vis = attended_vis.squeeze(1)
+
+            fused = torch.cat([attended_vis, weighted_txt], dim=1)
+            logits = self.model.classifier(fused)
+
+            pred_class = int(logits.argmax(dim=-1).item())
+            score = logits[0, pred_class]
+            score.backward()
+
+        # Clean up hooks
+        for h in hook_handles:
+            h.remove()
+
+        # Build gradient-weighted attention rollout from last 4 layers
+        n_layers = len(attentions)
+        start_layer = max(0, n_layers - 4)
+
+        rollout = None
+        for i in range(start_layer, n_layers):
+            attn = attentions[i][0].detach()  # [num_heads, 197, 197]
+
+            # Weight by positive gradients if available
+            if i in attn_grads:
+                grad = torch.clamp(attn_grads[i][0], min=0)
+                attn = attn * grad
+
+            head_avg = attn.mean(dim=0)  # [197, 197]
+
+            # Add residual connection
+            head_avg = 0.5 * head_avg + 0.5 * torch.eye(
+                head_avg.size(0), device=head_avg.device
+            )
+            row_sum = torch.clamp(head_avg.sum(dim=-1, keepdim=True), min=1e-8)
+            head_avg = head_avg / row_sum
+
+            if rollout is None:
+                rollout = head_avg
+            else:
+                rollout = torch.matmul(rollout, head_avg)
+
+        cls_attn = rollout[0, 1:].cpu().numpy()  # [196]
+        return self._postprocess_and_overlay(cls_attn, original_pil)
+
+    def _compute_attention_only(self, img_tensor, original_pil):
+        """Pure attention rollout fallback (no gradients)."""
+        vision_enc = getattr(self.model, 'vision_encoder', None)
+        if vision_enc is None:
+            return ""
+
+        with torch.no_grad():
+            vision_outputs = vision_enc(img_tensor, output_attentions=True)
+            attentions = getattr(vision_outputs, 'attentions', None)
+            if attentions is None or len(attentions) == 0:
+                return ""
+
+            n_layers = len(attentions)
+            deep_layers = attentions[max(0, n_layers - 4):]
+
+            rollout = None
+            for layer_attn in deep_layers:
+                head_avg = layer_attn[0].mean(dim=0)
+                head_avg = 0.5 * head_avg + 0.5 * torch.eye(
+                    head_avg.size(0), device=head_avg.device
+                )
+                head_avg = head_avg / head_avg.sum(dim=-1, keepdim=True)
+                if rollout is None:
+                    rollout = head_avg
+                else:
+                    rollout = torch.matmul(rollout, head_avg)
+
+            cls_attn = rollout[0, 1:].cpu().numpy()
+
+        return self._postprocess_and_overlay(cls_attn, original_pil)
+
+    def _compute_input_gradient(self, img_tensor, input_ids, attention_mask, original_pil):
+        """Final fallback: pixel-level gradient saliency."""
         self.model.zero_grad()
 
         with torch.enable_grad():
             img_g = img_tensor.detach().clone().requires_grad_(True)
             logits, _ = self.model(img_g, input_ids, attention_mask, return_attention=True)
             pred_class = int(logits.argmax(dim=-1).item())
-            score = logits[0, pred_class]
-            score.backward()
+            logits[0, pred_class].backward()
 
         if img_g.grad is None:
-            print("[GradCAM] No gradient on input image.")
             return ""
 
-        # img_g.grad: [1, 3, 224, 224]
-        # Take max absolute gradient across RGB channels → [224, 224]
         saliency = img_g.grad[0].abs().max(dim=0)[0].cpu().numpy()
-
-        # Smooth with small Gaussian to reduce pixel noise
-        saliency = cv2.GaussianBlur(saliency, (11, 11), 0)
-
-        # Normalise
+        saliency = cv2.GaussianBlur(saliency, (21, 21), 0)
         s_min, s_max = saliency.min(), saliency.max()
         if s_max - s_min < 1e-8:
-            print("[GradCAM] Saliency map is flat. Skipping.")
             return ""
         saliency = (saliency - s_min) / (s_max - s_min)
+        return self._overlay_heatmap(saliency, original_pil)
 
-        # Convert original image to numpy 224×224
-        orig    = original_pil.convert("RGB").resize((224, 224))
+    def _postprocess_and_overlay(self, cls_attn: np.ndarray, original_pil: Image.Image) -> str:
+        """Normalize, threshold, reshape, smooth, and overlay."""
+        a_min, a_max = cls_attn.min(), cls_attn.max()
+        if a_max - a_min < 1e-8:
+            return ""
+        cls_attn = (cls_attn - a_min) / (a_max - a_min)
+
+        # Suppress bottom 40% to focus on strong activations
+        threshold = np.percentile(cls_attn, 40)
+        cls_attn = np.clip(cls_attn - threshold, 0, 1)
+        c_max = cls_attn.max()
+        if c_max > 1e-8:
+            cls_attn = cls_attn / c_max
+
+        # Reshape [196] → [14, 14]
+        attn_map = cls_attn.reshape(self.GRID_SIZE, self.GRID_SIZE)
+
+        # Upsample to 224×224
+        attn_map = cv2.resize(attn_map, (224, 224), interpolation=cv2.INTER_CUBIC)
+
+        # Smooth to reduce grid artifacts
+        attn_map = cv2.GaussianBlur(attn_map, (15, 15), 0)
+
+        # Final normalize
+        a_min, a_max = attn_map.min(), attn_map.max()
+        if a_max - a_min > 1e-8:
+            attn_map = (attn_map - a_min) / (a_max - a_min)
+
+        return self._overlay_heatmap(attn_map, original_pil)
+
+    def _overlay_heatmap(self, cam: np.ndarray, original_pil: Image.Image) -> str:
+        """Overlay a [224, 224] heatmap on the original image → base64 PNG."""
+        orig = original_pil.convert("RGB").resize((224, 224))
         orig_np = np.array(orig, dtype=np.float32) / 255.0
 
-        # Apply JET colormap and blend
-        heatmap = cv2.applyColorMap(np.uint8(255 * saliency), cv2.COLORMAP_JET)
+        heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
         heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
         overlay = 0.45 * heatmap + 0.55 * orig_np
         overlay = np.clip(overlay * 255, 0, 255).astype(np.uint8)
 
-        # Encode to base64 PNG
         buf = io.BytesIO()
         Image.fromarray(overlay).save(buf, format="PNG")
         return base64.b64encode(buf.getvalue()).decode("utf-8")
@@ -121,12 +278,6 @@ class GradCAMViT:
 # ─────────────────────────────────────────────
 
 def generate_openai_summary(result: dict, api_key: Optional[str] = None) -> str:
-    """
-    Sends the full assessment dict to GPT-4o and returns a structured,
-    human-readable explanation for field responders.
-
-    result: the JSON dict returned by /analyze
-    """
     key = api_key or os.getenv("OPENAI_API_KEY", "")
     if not key or key == "your_key_here":
         return ""
@@ -157,7 +308,7 @@ IoT Sensor Analysis:
   Earthquake     : M{iot.get('eq_magnitude', 0) * 9:.1f}
   Flood risk     : {iot.get('flood_risk', 0) * 100:.0f} / 100
   Casualty risk  : {iot.get('casualty_risk', 0):.1%}
-  Sensor weights : {iot.get('sensor_weights', {})}
+  Sensor weights : {iot.get('sensor_weights', {{}})}
 
 Social Media (Crisis Model):
   Category       : {crisis.get('category')}
@@ -174,9 +325,9 @@ Write a structured field briefing with exactly these 4 sections:
 
 **SITUATION**: 2-3 sentences explaining what is happening, what the sensors detected, and what social media confirms.
 
-**KEY RISKS**: Bullet list of the top 3 specific risks (use actual numbers from the data — e.g. casualty risk %, flood score, etc.)
+**KEY RISKS**: Bullet list of the top 3 specific risks (use actual numbers from the data)
 
-**RECOMMENDED ACTIONS**: Numbered list of 3-4 specific, actionable steps for first responders (deploy X, evacuate Y, prioritize Z).
+**RECOMMENDED ACTIONS**: Numbered list of 3-4 specific, actionable steps for first responders.
 
 **WHY THIS ALERT**: 1-2 sentences explaining which data signals drove this assessment and why the alert level was set to {result.get('alert_level')}.
 
