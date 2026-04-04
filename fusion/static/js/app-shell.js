@@ -34,9 +34,42 @@ function renderFooter(){
   if(!footer) return;
 
   footer.innerHTML = `
-    <footer class="footer">
-      <div>2026 Multimodal Disaster Intelligence Platform</div>
-      <div class="footer-note">Operational workspace for overview, analysis, incident review, IoT monitoring, and reporting.</div>
+    <footer class="site-footer">
+      <div class="site-footer__divider"></div>
+      <div class="site-footer__body">
+
+        <div class="site-footer__brand">
+          <div class="site-footer__brand-name">Multimodal Disaster Intelligence Platform</div>
+          <p class="site-footer__brand-desc">
+            A tri-modal deep learning system fusing social media imagery, IoT sensor streams,
+            and satellite data for real-time disaster assessment and responder briefing.
+          </p>
+        </div>
+
+        <div class="site-footer__nav-group">
+          <div class="site-footer__nav-label">Platform</div>
+          <a href="/overview" class="site-footer__nav-link">Overview</a>
+          <a href="/analysis" class="site-footer__nav-link">New Analysis</a>
+          <a href="/incident" class="site-footer__nav-link">Incident Details</a>
+          <a href="/iot-monitor" class="site-footer__nav-link">IoT Monitor</a>
+          <a href="/reports" class="site-footer__nav-link">Reports</a>
+        </div>
+
+        <div class="site-footer__nav-group">
+          <div class="site-footer__nav-label">Models</div>
+          <span class="site-footer__nav-item">Crisis CLIP Classifier</span>
+          <span class="site-footer__nav-item">xBD Satellite Segmenter</span>
+          <span class="site-footer__nav-item">IoT Tri-Fusion Layer</span>
+          <span class="site-footer__nav-item">Grad-CAM Explainability</span>
+          <span class="site-footer__nav-item">Resource Demand Estimator</span>
+        </div>
+
+      </div>
+
+      <div class="site-footer__bottom">
+        <div class="site-footer__copy">&copy; 2026 Multimodal Disaster Intelligence Platform</div>
+        <div class="site-footer__sdp">Developed as an SDP Project</div>
+      </div>
     </footer>
   `;
 }
