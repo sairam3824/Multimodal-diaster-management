@@ -70,7 +70,7 @@ Thumbs.db
 *.joblib
 
 # Project-specific: Datasets
-IOT/datasets/
+# IOT/datasets/
 # IOT/models/
 !iot/models/iot_model.pth
 crisis/Dataset/
