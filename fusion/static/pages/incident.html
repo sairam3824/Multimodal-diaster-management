@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Incident Details | Multimodal Disaster Intelligence Platform</title>
+  <title>Incident Details | Tri-Fusion Disaster Intelligence Platform</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -14,101 +14,173 @@
     <div id="app-header"></div>
 
     <main class="page">
-      <section class="page-hero">
-        <div class="eyebrow">Incident details</div>
-        <h1 class="hero-title">Review the saved case briefing, explainability output, and multimodal reasoning.</h1>
-        <p class="hero-copy">
-          This page is the full case review surface. It focuses on one saved incident at a time,
-          with crisis probabilities, IoT weights, resource demand, and responder briefing.
-        </p>
-      </section>
 
+      <!-- Empty / pending state -->
       <div class="empty-state" id="incident-empty" style="display:none;">
         No incident has been saved yet. Run a case from New Analysis or open one from Reports.
       </div>
 
+      <!-- Main incident content — JS sets this to display:flex -->
       <div class="page" id="incident-content" style="display:none;">
-        <section class="grid-two">
-          <div class="surface pad stack">
-            <div class="result-banner">
-              <div class="metric-label">Current alert</div>
-              <h3 id="incident-alert"></h3>
-              <p id="incident-summary"></p>
-            </div>
 
-            <div class="grid-three">
-              <div class="metric-card">
-                <div class="metric-label">Hazard</div>
-                <div class="metric-value" id="incident-type"></div>
-              </div>
-              <div class="metric-card">
-                <div class="metric-label">Priority</div>
-                <div class="metric-value" id="incident-priority"></div>
-              </div>
-              <div class="metric-card">
-                <div class="metric-label">Updated</div>
-                <div class="metric-note" id="incident-updated"></div>
-                <div class="metric-value" id="incident-severity"></div>
-              </div>
-            </div>
-
-            <div class="surface-soft">
-              <div class="metric-label">Responder briefing</div>
-              <div class="metric-note" id="incident-briefing" style="margin-top:12px; line-height:1.9;"></div>
-            </div>
+        <!-- =====================================================
+             STATUS BANNER — full-width, alert heading + 4 metrics
+             ===================================================== -->
+        <section class="surface pad inc-status-banner">
+          <div class="inc-status-left">
+            <div class="eyebrow">Incident details</div>
+            <h2 class="inc-alert-heading" id="incident-alert"></h2>
+            <p class="metric-note" id="incident-summary"></p>
           </div>
 
-          <div class="surface pad stack">
-            <div class="metric-label">Grad-CAM focus</div>
-            <img id="incident-gradcam" alt="Grad-CAM heatmap" style="display:none; width:100%; border-radius:24px;"/>
-
+          <div class="inc-status-right">
             <div class="metric-card">
-              <div class="metric-label">Crisis category</div>
-              <div class="metric-value" id="incident-crisis-category"></div>
-              <div class="metric-note" id="incident-crisis-confidence"></div>
+              <div class="metric-label">Hazard</div>
+              <div class="metric-value" id="incident-type"></div>
             </div>
-
-            <div class="stack">
-              <div class="metric-label">Modality weights</div>
-              <div class="split-bars" id="incident-modality"></div>
+            <div class="metric-card">
+              <div class="metric-label">Priority</div>
+              <div class="metric-value" id="incident-priority"></div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Severity</div>
+              <div class="metric-value" id="incident-severity"></div>
+              <div class="metric-note" id="incident-updated"></div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Active modalities</div>
+              <div class="metric-value" style="font-size:1rem; letter-spacing:-.02em;" id="incident-active-modalities"></div>
             </div>
           </div>
         </section>
 
-        <section class="detail-grid">
+        <!-- =====================================================
+             MAIN TWO-COLUMN GRID
+             Left  (55 %): visuals — GradCAM images + briefing
+             Right (45 %): analytics — probabilities + gates
+             ===================================================== -->
+        <section class="inc-main-grid">
+
+          <!-- LEFT — visual column -->
+          <div class="stack">
+
+            <!-- Crisis Grad-CAM card -->
+            <div class="surface pad stack">
+              <div class="metric-label">Crisis Grad-CAM</div>
+              <img
+                id="incident-gradcam"
+                alt="Crisis Grad-CAM heatmap"
+                style="display:none; width:100%; max-height:400px; object-fit:cover; border-radius:var(--radius-lg);"
+              />
+              <div class="inc-gradcam-meta">
+                <div>
+                  <div class="metric-label" style="margin-bottom:6px;">Crisis category</div>
+                  <div class="metric-value" style="font-size:1.4rem;" id="incident-crisis-category"></div>
+                </div>
+                <div class="inc-confidence-chip" id="incident-crisis-confidence"></div>
+              </div>
+            </div>
+
+            <!-- Satellite Grad-CAM card (conditional) -->
+            <div class="surface pad stack" id="incident-satellite-section" style="display:none;">
+              <div class="metric-label">Satellite Grad-CAM</div>
+              <img
+                id="incident-sat-gradcam"
+                alt="Satellite Grad-CAM heatmap"
+                style="display:none; width:100%; max-height:400px; object-fit:cover; border-radius:var(--radius-lg);"
+              />
+              <div class="inc-gradcam-meta">
+                <div>
+                  <div class="metric-label" style="margin-bottom:6px;">Damage class</div>
+                  <div class="metric-value damage-badge" style="font-size:1.4rem;" id="incident-sat-damage"></div>
+                </div>
+                <div class="split-bars" style="flex:1; min-width:0;" id="incident-sat-probs"></div>
+              </div>
+            </div>
+
+            <!-- Responder briefing card -->
+            <div class="surface pad stack">
+              <div class="metric-label">Responder briefing</div>
+              <div class="surface-soft">
+                <div class="inc-briefing-text" id="incident-briefing"></div>
+              </div>
+            </div>
+
+          </div><!-- /LEFT -->
+
+          <!-- RIGHT — analytics column -->
+          <div class="stack">
+
+            <!-- Crisis probabilities -->
+            <div class="surface pad stack">
+              <div class="section-heading">
+                <div>
+                  <h2>Crisis probabilities</h2>
+                  <p>Sorted confidence across humanitarian classes.</p>
+                </div>
+              </div>
+              <div class="probability-list" id="incident-probabilities"></div>
+            </div>
+
+            <!-- Satellite damage assessment (conditional) -->
+            <div class="surface pad stack" id="incident-sat-probabilities-section" style="display:none;">
+              <div class="section-heading">
+                <div>
+                  <h2>Satellite damage assessment</h2>
+                  <p>xBD DeepLabV3+ damage classification across 4 severity levels.</p>
+                </div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Predicted damage class</div>
+                <div class="metric-value damage-badge" id="incident-sat-predicted"></div>
+              </div>
+              <div class="probability-list" id="incident-sat-probability-list"></div>
+            </div>
+
+            <!-- Fusion gate weights -->
+            <div class="surface pad stack">
+              <div class="section-heading">
+                <div>
+                  <h2>Fusion gate weights</h2>
+                  <p>Tri-modal attention contributions.</p>
+                </div>
+              </div>
+              <div class="split-bars" id="incident-modality"></div>
+            </div>
+
+          </div><!-- /RIGHT -->
+
+        </section><!-- /inc-main-grid -->
+
+        <!-- =====================================================
+             BOTTOM TWO-COLUMN GRID
+             Sensor weights | Resource demand
+             ===================================================== -->
+        <section class="inc-bottom-grid">
+
           <div class="surface pad stack">
             <div class="section-heading">
               <div>
-                <h2>Crisis probabilities</h2>
-                <p>Sorted confidence across humanitarian classes.</p>
+                <h2>Sensor weights</h2>
+                <p>How the IoT signal groups contributed to the case.</p>
               </div>
             </div>
-            <div class="probability-list" id="incident-probabilities"></div>
+            <div class="split-bars" id="incident-sensors"></div>
           </div>
 
-          <div class="stack">
-            <div class="surface pad stack">
-              <div class="section-heading">
-                <div>
-                  <h2>Sensor weights</h2>
-                  <p>How the IoT signal groups contributed to the case.</p>
-                </div>
+          <div class="surface pad stack">
+            <div class="section-heading">
+              <div>
+                <h2>Resource demand</h2>
+                <p>Estimated support needs from the fusion layer.</p>
               </div>
-              <div class="split-bars" id="incident-sensors"></div>
             </div>
-
-            <div class="surface pad stack">
-              <div class="section-heading">
-                <div>
-                  <h2>Resource demand</h2>
-                  <p>Estimated support needs from the fusion layer.</p>
-                </div>
-              </div>
-              <div class="split-bars" id="incident-resources"></div>
-            </div>
+            <div class="split-bars" id="incident-resources"></div>
           </div>
-        </section>
-      </div>
+
+        </section><!-- /inc-bottom-grid -->
+
+      </div><!-- /incident-content -->
     </main>
 
     <div id="app-footer"></div>
