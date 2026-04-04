@@ -71,7 +71,8 @@ Thumbs.db
 
 # Project-specific: Datasets
 IOT/datasets/
-IOT/models/
+# IOT/models/
+!iot/models/iot_model.pth
 crisis/Dataset/
 
 # AI Tools and IDEs
