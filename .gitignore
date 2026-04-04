@@ -73,6 +73,8 @@ Thumbs.db
 # IOT/datasets/
 # IOT/models/
 !iot/models/iot_model.pth
+!fusion/tri_fusion_model.pth
+!fusion/fusion_model.pth
 crisis/Dataset/
 
 # AI Tools and IDEs
