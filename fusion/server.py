@@ -1,15 +1,16 @@
 """
-Unified Disaster Response Server
-==================================
-FastAPI server that merges the existing CrisisMMD classifier with
-all 6 IoT sensor models through the FusionLayer.
+Unified Disaster Response Server (Tri-Fusion)
+===============================================
+FastAPI server that merges the CrisisMMD classifier, IoT sensor models,
+and xBD satellite damage model through the TriFusionLayer.
 
 Endpoints:
   GET  /health
-  POST /analyze        → full pipeline (image + tweet + IoT fields)
-  POST /crisis/predict → crisis model only (mirrors crisis/server.py)
-  POST /iot/predict    → IoT models only
-  GET  /               → serves static/index.html dashboard
+  POST /analyze              → full tri-fusion pipeline (image + tweet + IoT + satellite)
+  POST /crisis/predict       → crisis model only
+  POST /iot/predict          → IoT models only
+  POST /satellite/predict    → satellite damage only (NEW)
+  GET  /                     → serves static/index.html dashboard
 
 Run:
     uvicorn fusion.server:app --host 0.0.0.0 --port 8001 --reload
@@ -49,6 +50,7 @@ if _env_path.exists():
 
 from fusion.pipeline import DisasterPipeline, CRISIS_CLASSES
 from fusion.xai import GradCAMViT, generate_openai_summary
+from fusion.satellite_xai import SatelliteGradCAM, overlay_heatmap, overlay_to_base64
 
 # ─────────────────────────────────────────────
 # Global state
@@ -117,6 +119,13 @@ async def lifespan(app: FastAPI):
             import traceback
             print(f"[Server] Grad-CAM init FAILED: {e}")
             traceback.print_exc()
+    # Set up Satellite Grad-CAM if satellite model loaded
+    if pipe._satellite_model is not None:
+        try:
+            state["sat_gradcam"] = SatelliteGradCAM(pipe._satellite_model)
+            print("[Server] Satellite Grad-CAM ready.")
+        except Exception as e:
+            print(f"[Server] Satellite Grad-CAM init FAILED: {e}")
     state["openai_key"] = os.getenv("OPENAI_API_KEY", "")
     print(f"[Server] OpenAI key loaded: {'yes' if state['openai_key'] else 'NO KEY FOUND'}")
     print("[Server] Ready.")
@@ -128,9 +137,9 @@ async def lifespan(app: FastAPI):
 # App
 # ─────────────────────────────────────────────
 app = FastAPI(
-    title="Unified Disaster Response API",
-    description="IoT × CrisisMMD fusion for real-time disaster assessment",
-    version="1.0.0",
+    title="Unified Disaster Response API (Tri-Fusion)",
+    description="IoT × CrisisMMD × Satellite(xBD) tri-fusion for real-time disaster assessment",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -209,14 +218,15 @@ async def reports_page():
 
 @app.get("/health")
 async def health():
+    pipe = state.get("pipeline")
     return {
-        "status":       "ok",
-        "pipeline":     "pipeline" in state,
-        "crisis_model": state.get("pipeline") is not None
-                        and state["pipeline"]._crisis_model is not None,
-        "iot_model":    "iot_model.pth loaded"
-                        if "pipeline" in state else "not loaded",
-        "background_jobs": len(state.get("jobs", {})),
+        "status":           "ok",
+        "pipeline":         pipe is not None,
+        "crisis_model":     pipe is not None and pipe._crisis_model is not None,
+        "iot_model":        "loaded" if pipe is not None else "not loaded",
+        "satellite_model":  pipe is not None and pipe._satellite_model is not None,
+        "tri_fusion":       pipe is not None,
+        "background_jobs":  len(state.get("jobs", {})),
     }
 
 
@@ -229,6 +239,7 @@ def _run_analysis_sync(
     image_path: str,
     tweet: str,
     sensor_kwargs: Dict[str, Any],
+    satellite_image_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     if "pipeline" not in state:
         raise HTTPException(503, "Pipeline not ready")
@@ -237,9 +248,11 @@ def _run_analysis_sync(
     result = state["pipeline"].analyze(
         image_path=image_path,
         tweet=tweet,
+        satellite_image_path=satellite_image_path,
         **sensor_kwargs,
     )
 
+    # Crisis Grad-CAM
     gradcam_b64 = ""
     if "gradcam" in state:
         try:
@@ -257,7 +270,26 @@ def _run_analysis_sync(
                 img_pil,
             )
         except Exception as e:
-            print(f"[Server] Grad-CAM skipped: {e}")
+            print(f"[Server] Crisis Grad-CAM skipped: {e}")
+
+    # Satellite Grad-CAM
+    sat_gradcam_b64 = ""
+    if satellite_image_path and "sat_gradcam" in state:
+        try:
+            import cv2
+            import numpy as np
+            from XBD.xbd_model import preprocess_satellite_image, IMAGE_SIZE
+            pipe = state["pipeline"]
+            sat_tensor = preprocess_satellite_image(satellite_image_path, device=pipe.device)
+            cam = state["sat_gradcam"].compute(sat_tensor, target="F_sat")
+            orig_img = cv2.imread(satellite_image_path)
+            if orig_img is not None:
+                orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
+                orig_img = cv2.resize(orig_img, (IMAGE_SIZE, IMAGE_SIZE))
+                overlay_img = overlay_heatmap(cam, orig_img)
+                sat_gradcam_b64 = overlay_to_base64(overlay_img)
+        except Exception as e:
+            print(f"[Server] Satellite Grad-CAM skipped: {e}")
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -289,11 +321,13 @@ def _run_analysis_sync(
     xai_summary = generate_openai_summary(response_dict, state.get("openai_key", ""))
 
     return {
-        "alert_level":     result.alert_level,
-        "summary":         result.summary,
-        "disaster_type":   result.confirmed_type,
-        "priority":        result.priority,
-        "fused_severity":  round(result.fused_severity, 4),
+        "alert_level":      result.alert_level,
+        "summary":          result.summary,
+        "disaster_type":    result.confirmed_type,
+        "priority":         result.priority,
+        "fused_severity":   round(result.fused_severity, 4),
+        "active_modalities": result.active_modalities,
+        "modality_weights":  {k: round(v, 4) for k, v in result.modality_weights.items()},
         "iot": {
             "type":           result.iot_disaster_type,
             "fire_prob":      round(result.iot_fire_prob, 4),
@@ -311,6 +345,10 @@ def _run_analysis_sync(
             "vision_weight": round(result.vision_weight, 4),
             "text_weight":   round(result.text_weight, 4),
         },
+        "satellite": {
+            "damage_class":  result.satellite_damage,
+            "damage_probs":  {k: round(v, 4) for k, v in result.satellite_damage_probs.items()},
+        } if result.satellite_damage else None,
         "fusion": {
             "priority_probs":    {k: round(v, 4) for k, v in result.priority_probs.items()},
             "type_probs":        {k: round(v, 4) for k, v in result.type_probs.items()},
@@ -318,8 +356,9 @@ def _run_analysis_sync(
             "resource_needs":    {k: round(v, 4) for k, v in result.resource_needs.items()},
         },
         "xai": {
-            "gradcam_b64": gradcam_b64,
-            "summary":     xai_summary,
+            "crisis_gradcam_b64":    gradcam_b64,
+            "satellite_gradcam_b64": sat_gradcam_b64,
+            "summary":               xai_summary,
         },
         "inference_ms": elapsed_ms,
     }
@@ -330,6 +369,7 @@ async def _execute_analysis(
     image_path: str,
     tweet: str,
     sensor_kwargs: Dict[str, Any],
+    satellite_image_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     async with state["analysis_lock"]:
         return await asyncio.to_thread(
@@ -337,6 +377,7 @@ async def _execute_analysis(
             image_path=image_path,
             tweet=tweet,
             sensor_kwargs=sensor_kwargs,
+            satellite_image_path=satellite_image_path,
         )
 
 
@@ -355,6 +396,7 @@ async def _run_background_job(
     image_path: str,
     tweet: str,
     sensor_kwargs: Dict[str, Any],
+    satellite_image_path: Optional[str] = None,
 ) -> None:
     _update_job(job_id, status="running")
 
@@ -363,15 +405,18 @@ async def _run_background_job(
             image_path=image_path,
             tweet=tweet,
             sensor_kwargs=sensor_kwargs,
+            satellite_image_path=satellite_image_path,
         )
         _update_job(job_id, status="completed", completed_at=time.time(), result=result)
     except Exception as e:
         _update_job(job_id, status="failed", error=str(e))
     finally:
-        try:
-            os.remove(image_path)
-        except Exception as e:
-            print(f"[Server] Warning: failed to clean up {image_path}: {e}")
+        for p in [image_path, satellite_image_path]:
+            if p:
+                try:
+                    os.remove(p)
+                except Exception as e:
+                    print(f"[Server] Warning: failed to clean up {p}: {e}")
 
 
 async def _save_upload_to_job_file(image: UploadFile) -> str:
@@ -388,6 +433,7 @@ async def analyze(
     request:       Request,
     image:         UploadFile = File(...),
     tweet:         str        = Form(...),
+    satellite_image: Optional[UploadFile] = File(None),
     lat:           Optional[float] = Form(None),
     lon:           Optional[float] = Form(None),
     # fire
@@ -423,19 +469,70 @@ async def analyze(
         drainage_index=drainage_index, ndvi=ndvi, ndwi=ndwi,
     )
     tmp_path = await _save_upload_to_job_file(image)
+    sat_tmp_path = None
+    if satellite_image is not None and satellite_image.filename:
+        sat_tmp_path = await _save_upload_to_job_file(satellite_image)
     try:
         result = await _execute_analysis(
             image_path=tmp_path,
             tweet=tweet,
             sensor_kwargs=sensor_kwargs,
+            satellite_image_path=sat_tmp_path,
         )
     finally:
-        try:
-            os.remove(tmp_path)
-        except Exception as e:
-            print(f"[Server] Warning: failed to clean up {tmp_path}: {e}")
+        for p in [tmp_path, sat_tmp_path]:
+            if p:
+                try:
+                    os.remove(p)
+                except Exception as e:
+                    print(f"[Server] Warning: failed to clean up {p}: {e}")
 
     return JSONResponse(result)
+
+
+@app.post("/satellite/predict")
+async def satellite_predict(
+    request: Request,
+    satellite_image: UploadFile = File(...),
+):
+    """Standalone satellite damage prediction (no fusion)."""
+    _check_rate_limit(request)
+    if "pipeline" not in state:
+        raise HTTPException(503, "Pipeline not ready")
+    pipe = state["pipeline"]
+    if pipe._satellite_predictor is None:
+        raise HTTPException(503, "Satellite model not loaded")
+
+    sat_tmp = await _save_upload_to_job_file(satellite_image)
+    try:
+        result = pipe._satellite_predictor.predict(sat_tmp)
+        # Generate Grad-CAM
+        sat_gradcam_b64 = ""
+        if "sat_gradcam" in state:
+            try:
+                import cv2
+                import numpy as np
+                from XBD.xbd_model import preprocess_satellite_image, IMAGE_SIZE
+                sat_tensor = preprocess_satellite_image(sat_tmp, device=pipe.device)
+                cam = state["sat_gradcam"].compute(sat_tensor, target="F_sat")
+                orig_img = cv2.imread(sat_tmp)
+                if orig_img is not None:
+                    orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
+                    orig_img = cv2.resize(orig_img, (IMAGE_SIZE, IMAGE_SIZE))
+                    overlay_img = overlay_heatmap(cam, orig_img)
+                    sat_gradcam_b64 = overlay_to_base64(overlay_img)
+            except Exception as e:
+                print(f"[Server] Satellite Grad-CAM skipped: {e}")
+        return JSONResponse({
+            "damage_class": result["damage_class"],
+            "damage_probs": {k: round(v, 4) for k, v in result["damage_probs"].items()},
+            "xai": {"satellite_gradcam_b64": sat_gradcam_b64},
+        })
+    finally:
+        try:
+            os.remove(sat_tmp)
+        except Exception:
+            pass
 
 
 @app.post("/analysis/jobs")
@@ -443,6 +540,7 @@ async def create_analysis_job(
     request:       Request,
     image:         UploadFile = File(...),
     tweet:         str        = Form(...),
+    satellite_image: Optional[UploadFile] = File(None),
     lat:           Optional[float] = Form(None),
     lon:           Optional[float] = Form(None),
     max_temp:          Optional[float] = Form(None),
@@ -477,6 +575,9 @@ async def create_analysis_job(
         drainage_index=drainage_index, ndvi=ndvi, ndwi=ndwi,
     )
     image_path = await _save_upload_to_job_file(image)
+    sat_image_path = None
+    if satellite_image is not None and satellite_image.filename:
+        sat_image_path = await _save_upload_to_job_file(satellite_image)
     created_at = time.time()
     job_id = uuid4().hex
     state["jobs"][job_id] = {
@@ -495,6 +596,7 @@ async def create_analysis_job(
             image_path=image_path,
             tweet=tweet,
             sensor_kwargs=sensor_kwargs,
+            satellite_image_path=sat_image_path,
         )
     )
 
