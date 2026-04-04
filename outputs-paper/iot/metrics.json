@@ -1,0 +1,250 @@
+{
+  "model": {
+    "name": "AdaptiveIoTClassifier",
+    "architecture": {
+      "input_dim": 32,
+      "sensor_groups": 4,
+      "group_size": 8,
+      "hidden_dim": 128,
+      "attention_heads": 4,
+      "output_classes": 5,
+      "multi_task_heads": [
+        "disaster_type",
+        "severity",
+        "risk_details"
+      ],
+      "novel_components": [
+        "SensorConfidenceEstimator (per-group adaptive weighting)",
+        "CrossGroupMultiheadAttention (sensor interaction)",
+        "Joint multi-task learning (type + severity + risk)",
+        "Automatic disaster-type detection (no user input required)"
+      ]
+    },
+    "training": {
+      "epochs": 40,
+      "batch_size": 256,
+      "optimizer": "AdamW",
+      "lr": 0.001,
+      "scheduler": "CosineAnnealingLR",
+      "sampler": "WeightedRandomSampler",
+      "train_val_split": "85/15",
+      "device": "cpu"
+    },
+    "checkpoint": {
+      "val_accuracy": 0.9775445960125918,
+      "val_macro_f1": 0.9059141184671331
+    }
+  },
+  "dataset": {
+    "sources": [
+      {
+        "name": "CA Wildfire (FIRE_START_DAY)",
+        "class": "fire",
+        "rows": 14988
+      },
+      {
+        "name": "Historical Tropical Storm Tracks",
+        "class": "storm",
+        "rows": 59228
+      },
+      {
+        "name": "Atlantic Storms",
+        "class": "storm",
+        "rows": 22705
+      },
+      {
+        "name": "Global Earthquakes",
+        "class": "earthquake",
+        "rows": 8394
+      },
+      {
+        "name": "Iran Earthquakes",
+        "class": "earthquake",
+        "rows": 52268
+      },
+      {
+        "name": "Sri Lanka Flood Risk (25k)",
+        "class": "flood",
+        "rows": 25000
+      }
+    ],
+    "class_support": {
+      "fire": 4971,
+      "storm": 13162,
+      "earthquake": 18394,
+      "flood": 25000,
+      "unknown": 2000
+    },
+    "total_samples": 63527
+  },
+  "classification": {
+    "accuracy": 0.9763722511687943,
+    "cohen_kappa": 0.9667928825009914,
+    "matthews_corrcoef": 0.9668392811326015,
+    "macro_avg": {
+      "precision": 0.8964807547723396,
+      "recall": 0.9058415811707906,
+      "f1_score": 0.8999544805249767
+    },
+    "weighted_avg": {
+      "precision": 0.9779604143651608,
+      "recall": 0.9763722511687943,
+      "f1_score": 0.9769170441207404
+    },
+    "per_class": {
+      "fire": {
+        "precision": 0.8771739130434782,
+        "recall": 0.8117079058539529,
+        "f1_score": 0.8431720823320448,
+        "support": 4971,
+        "roc_auc": 0.9943059062186337,
+        "avg_precision": 0.9099774795275226
+      },
+      "storm": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "support": 13162,
+        "roc_auc": 1.0,
+        "avg_precision": 1.0
+      },
+      "earthquake": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "support": 18394,
+        "roc_auc": 1.0,
+        "avg_precision": 1.0
+      },
+      "flood": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "support": 25000,
+        "roc_auc": 1.0,
+        "avg_precision": 1.0
+      },
+      "unknown": {
+        "precision": 0.6052298608182202,
+        "recall": 0.7175,
+        "f1_score": 0.6566003202928392,
+        "support": 2000,
+        "roc_auc": 0.9865308563719993,
+        "avg_precision": 0.7008581445001374
+      }
+    },
+    "roc_auc_macro": 0.9961689657569935,
+    "mean_avg_precision": 0.9221671248055319,
+    "confusion_matrix": [
+      [
+        4035,
+        0,
+        0,
+        0,
+        936
+      ],
+      [
+        0,
+        13162,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        18394,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        25000,
+        0
+      ],
+      [
+        565,
+        0,
+        0,
+        0,
+        1435
+      ]
+    ],
+    "confusion_matrix_normalised": [
+      [
+        0.8117079058539529,
+        0.0,
+        0.0,
+        0.0,
+        0.18829209414604708
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.2825,
+        0.0,
+        0.0,
+        0.0,
+        0.7175
+      ]
+    ]
+  },
+  "severity_regression": {
+    "mae": 0.04519558697938919,
+    "rmse": 0.1188019723472205,
+    "r2": 0.745375394821167
+  },
+  "sensor_group_weights": {
+    "fire": {
+      "weather": 0.7584354877471924,
+      "storm": 0.24146990478038788,
+      "seismic": 3.404485937608115e-08,
+      "hydro": 9.45746069191955e-05
+    },
+    "storm": {
+      "weather": 5.007175059290603e-05,
+      "storm": 0.9999498724937439,
+      "seismic": 6.676562236407335e-08,
+      "hydro": 7.215557040751719e-09
+    },
+    "earthquake": {
+      "weather": 0.0006643863162025809,
+      "storm": 0.17094571888446808,
+      "seismic": 0.8283898830413818,
+      "hydro": 2.3807620763705017e-08
+    },
+    "flood": {
+      "weather": 0.18558570742607117,
+      "storm": 0.04743785038590431,
+      "seismic": 3.520012725743982e-08,
+      "hydro": 0.7669764161109924
+    },
+    "unknown": {
+      "weather": 0.7572411894798279,
+      "storm": 0.24101687967777252,
+      "seismic": 3.399510717372323e-08,
+      "hydro": 0.0017419096548110247
+    }
+  }
+}

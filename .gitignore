@@ -87,4 +87,5 @@ crisis/Dataset/
 # Project-specific: Evaluation & Logs
 *.log
 metrics.json
+!outputs-paper/iot/metrics.json
 .jobs_store.json
