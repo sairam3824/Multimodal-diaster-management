@@ -1,0 +1,46 @@
+{
+  "crisis_only": {
+    "severity_mae": 0.1165,
+    "priority_accuracy": 0.6896,
+    "disaster_accuracy": 1.0,
+    "population_mae": 0.0877,
+    "resource_mae": 0.0468,
+    "active_modalities": [
+      "crisis"
+    ]
+  },
+  "crisis_iot": {
+    "severity_mae": 0.0989,
+    "priority_accuracy": 0.7237,
+    "disaster_accuracy": 1.0,
+    "population_mae": 0.0691,
+    "resource_mae": 0.0393,
+    "active_modalities": [
+      "crisis",
+      "iot"
+    ]
+  },
+  "crisis_satellite": {
+    "severity_mae": 0.0415,
+    "priority_accuracy": 0.9875,
+    "disaster_accuracy": 1.0,
+    "population_mae": 0.0274,
+    "resource_mae": 0.0164,
+    "active_modalities": [
+      "crisis",
+      "satellite"
+    ]
+  },
+  "crisis_iot_satellite": {
+    "severity_mae": 0.0398,
+    "priority_accuracy": 0.9941,
+    "disaster_accuracy": 1.0,
+    "population_mae": 0.0248,
+    "resource_mae": 0.0161,
+    "active_modalities": [
+      "crisis",
+      "iot",
+      "satellite"
+    ]
+  }
+}
