@@ -67,6 +67,13 @@ textarea {
   margin: 18px auto 26px;
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 44px);
+}
+
+.site-shell main {
+  flex: 1;
 }
 
 #app-header {
@@ -579,6 +586,19 @@ textarea {
   font-size: .82rem;
 }
 
+.media-stage--small {
+  min-height: 160px;
+}
+
+.media-stage--small .hint strong {
+  font-size: 0.95rem;
+}
+
+.media-stage--small .hint p {
+  font-size: 0.82rem;
+  max-width: 280px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -696,6 +716,39 @@ textarea {
   background: rgba(214, 176, 122, .12);
 }
 
+/* Satellite damage class colors */
+.probability-row.damage-no-damage .bar-fill {
+  background: var(--success);
+}
+.probability-row.damage-minor-damage .bar-fill {
+  background: var(--warn);
+}
+.probability-row.damage-major-damage .bar-fill {
+  background: #d09a4e;
+}
+.probability-row.damage-destroyed .bar-fill {
+  background: var(--danger);
+}
+
+.damage-badge {
+  padding: 4px 12px;
+  border-radius: 10px;
+  display: inline-block;
+  font-weight: 700;
+}
+.damage-badge.damage-no-damage {
+  color: var(--success);
+}
+.damage-badge.damage-minor-damage {
+  color: var(--warn);
+}
+.damage-badge.damage-major-damage {
+  color: #d09a4e;
+}
+.damage-badge.damage-destroyed {
+  color: var(--danger);
+}
+
 .footer {
   display: flex;
   align-items: center;
@@ -709,6 +762,115 @@ textarea {
 .footer-note {
   max-width: 520px;
   text-align: right;
+}
+
+/* ================================================================
+   PROFESSIONAL SITE FOOTER
+   ================================================================ */
+
+.site-footer {
+  margin-top: 48px;
+}
+
+.site-footer__divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.08) 20%, rgba(255,255,255,.08) 80%, transparent);
+  margin-bottom: 44px;
+}
+
+.site-footer__body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 48px;
+  padding-bottom: 40px;
+}
+
+.site-footer__brand-name {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.site-footer__brand-desc {
+  color: var(--muted);
+  font-size: .875rem;
+  line-height: 1.8;
+  max-width: 420px;
+  margin-bottom: 20px;
+}
+
+.site-footer__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.site-footer__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.07);
+  color: var(--muted-strong);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.site-footer__nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.site-footer__nav-label {
+  color: var(--text);
+  font-size: .75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  margin-bottom: 6px;
+}
+
+.site-footer__nav-link {
+  color: var(--muted);
+  font-size: .875rem;
+  font-weight: 500;
+  transition: color .18s ease;
+}
+
+.site-footer__nav-link:hover {
+  color: var(--text);
+}
+
+.site-footer__nav-item {
+  color: var(--muted);
+  font-size: .875rem;
+  font-weight: 500;
+}
+
+.site-footer__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 0 8px;
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+
+.site-footer__copy {
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+.site-footer__sdp {
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .02em;
 }
 
 @media (max-width: 1180px) {
@@ -758,5 +920,127 @@ textarea {
 
   .footer-note {
     text-align: left;
+  }
+
+  .site-footer__body {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .site-footer__bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* ================================================================
+   INCIDENT PAGE — layout components
+   ================================================================ */
+
+/* Full-width status banner: alert text on the left, metric grid on the right */
+.inc-status-banner {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 32px;
+  border-left: 4px solid rgba(255, 255, 255, .08);
+}
+
+/* Left side of the banner: eyebrow + large alert heading + summary text */
+.inc-status-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Large, colored alert heading — JS adds .alert-red / .alert-green etc */
+.inc-alert-heading {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -.04em;
+  line-height: 1.05;
+  margin-top: 0;
+  text-transform: capitalize;
+}
+
+/* Right side: 4-column metric grid */
+.inc-status-right {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* Main two-column content grid: 55 % visual / 45 % analytics */
+.inc-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+  gap: 22px;
+}
+
+/* Bottom two equal-column grid: sensors / resources */
+.inc-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+
+/* Row inside a GradCAM card showing category name + confidence chip */
+.inc-gradcam-meta {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* Pill badge that displays model confidence prominently */
+.inc-confidence-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .08);
+  font-weight: 800;
+  font-size: .92rem;
+  color: var(--accent);
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Readable briefing prose inside its surface-soft wrapper */
+.inc-briefing-text {
+  line-height: 1.9;
+  color: var(--muted-strong);
+  font-size: .95rem;
+}
+
+/* ----------------------------------------------------------------
+   Responsive: collapse main & bottom grids to single column
+   ---------------------------------------------------------------- */
+@media (max-width: 1100px) {
+  .inc-main-grid,
+  .inc-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Collapse the 4-col metric strip to 2-col on narrow viewports */
+@media (max-width: 860px) {
+  .inc-status-banner {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .inc-status-right {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 }
