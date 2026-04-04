@@ -21,11 +21,12 @@ const FIELD_MAP = {
   ndwi: "s-ndwi"
 };
 
-function renderPreview(file){
-  const image = document.getElementById("analysis-preview");
-  const hint = document.getElementById("analysis-hint");
-  const status = document.getElementById("analysis-file-status");
-  const dropzone = document.getElementById("analysis-dropzone");
+function renderPreview(file, prefix){
+  prefix = prefix || "analysis";
+  const image = document.getElementById(`${prefix}-preview`);
+  const hint = document.getElementById(`${prefix}-hint`);
+  const status = document.getElementById(`${prefix}-file-status`);
+  const dropzone = document.getElementById(`${prefix}-dropzone`);
   image.src = URL.createObjectURL(file);
   image.style.display = "block";
   hint.style.display = "none";
@@ -131,84 +132,92 @@ function renderResult(record){
   document.getElementById("analysis-reports-link").href = "/reports";
 }
 
+function setupDropzone(dropzoneEl, fileInputEl, onFileSelected){
+  let depth = 0;
+  dropzoneEl.addEventListener("click", () => fileInputEl.click());
+  dropzoneEl.addEventListener("keydown", event => {
+    if(event.key === "Enter" || event.key === " "){
+      event.preventDefault();
+      fileInputEl.click();
+    }
+  });
+  dropzoneEl.addEventListener("dragenter", event => {
+    event.preventDefault();
+    depth += 1;
+    dropzoneEl.classList.add("drag-over");
+  });
+  dropzoneEl.addEventListener("dragover", event => {
+    event.preventDefault();
+    if(event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    dropzoneEl.classList.add("drag-over");
+  });
+  dropzoneEl.addEventListener("dragleave", event => {
+    event.preventDefault();
+    depth = Math.max(0, depth - 1);
+    if(depth === 0) dropzoneEl.classList.remove("drag-over");
+  });
+  dropzoneEl.addEventListener("drop", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    depth = 0;
+    dropzoneEl.classList.remove("drag-over");
+    const file = getDroppedImage(event.dataTransfer);
+    if(file) onFileSelected(file);
+    else showError("Please drop an image file in JPG, PNG, or WEBP format.");
+  });
+  fileInputEl.addEventListener("change", () => {
+    if(fileInputEl.files[0]) onFileSelected(fileInputEl.files[0]);
+  });
+}
+
 export function initAnalysisPage(){
   const fileInput = document.getElementById("analysis-file");
   const dropzone = document.getElementById("analysis-dropzone");
   const tweetInput = document.getElementById("tweet-input");
   const charCount = document.getElementById("analysis-char-count");
   let selectedFile = null;
-  let dragDepth = 0;
+  let selectedSatelliteFile = null;
+
+  // Satellite dropzone
+  const satFileInput = document.getElementById("satellite-file");
+  const satDropzone = document.getElementById("satellite-dropzone");
 
   function setSelectedFile(file){
     if(!file || !file.type.startsWith("image/")){
       showError("Please choose an image file in JPG, PNG, or WEBP format.");
       return;
     }
-
     selectedFile = file;
-    renderPreview(selectedFile);
+    renderPreview(selectedFile, "analysis");
     clearError();
-
-    // Keep the hidden input in sync so browser form semantics remain correct.
     try{
       const transfer = new DataTransfer();
       transfer.items.add(file);
       fileInput.files = transfer.files;
-    }catch{
-      // Some browsers restrict programmatic FileList assignment. Preview/state still work.
+    }catch{}
+  }
+
+  function setSelectedSatelliteFile(file){
+    if(!file || !file.type.startsWith("image/")){
+      showError("Please choose an image file for the satellite input.");
+      return;
     }
+    selectedSatelliteFile = file;
+    renderPreview(selectedSatelliteFile, "satellite");
+    clearError();
+    try{
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      satFileInput.files = transfer.files;
+    }catch{}
   }
 
   ["dragenter", "dragover", "dragleave", "drop"].forEach(type => {
-    document.addEventListener(type, event => {
-      event.preventDefault();
-    });
+    document.addEventListener(type, event => { event.preventDefault(); });
   });
 
-  dropzone.addEventListener("click", () => fileInput.click());
-  dropzone.addEventListener("keydown", event => {
-    if(event.key === "Enter" || event.key === " "){
-      event.preventDefault();
-      fileInput.click();
-    }
-  });
-  dropzone.addEventListener("dragenter", event => {
-    event.preventDefault();
-    dragDepth += 1;
-    dropzone.classList.add("drag-over");
-  });
-  dropzone.addEventListener("dragover", event => {
-    event.preventDefault();
-    if(event.dataTransfer){
-      event.dataTransfer.dropEffect = "copy";
-    }
-    dropzone.classList.add("drag-over");
-  });
-  dropzone.addEventListener("dragleave", event => {
-    event.preventDefault();
-    dragDepth = Math.max(0, dragDepth - 1);
-    if(dragDepth === 0){
-      dropzone.classList.remove("drag-over");
-    }
-  });
-  dropzone.addEventListener("drop", event => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragDepth = 0;
-    dropzone.classList.remove("drag-over");
-    const file = getDroppedImage(event.dataTransfer);
-    if(file){
-      setSelectedFile(file);
-    }else{
-      showError("Please drop an image file in JPG, PNG, or WEBP format.");
-    }
-  });
-
-  fileInput.addEventListener("change", () => {
-    if(fileInput.files[0]){
-      setSelectedFile(fileInput.files[0]);
-    }
-  });
+  setupDropzone(dropzone, fileInput, setSelectedFile);
+  setupDropzone(satDropzone, satFileInput, setSelectedSatelliteFile);
 
   tweetInput.addEventListener("input", () => {
     charCount.textContent = `${tweetInput.value.length} / 560`;
@@ -219,7 +228,7 @@ export function initAnalysisPage(){
     clearError();
 
     if(!selectedFile){
-      showError("Add an image before running analysis.");
+      showError("Add a crisis image before running analysis.");
       return;
     }
 
@@ -239,11 +248,14 @@ export function initAnalysisPage(){
     const formData = new FormData();
     formData.append("image", selectedFile);
     formData.append("tweet", tweetInput.value.trim());
+    if(selectedSatelliteFile){
+      formData.append("satellite_image", selectedSatelliteFile);
+    }
     Object.entries(sensors).forEach(([key, value]) => formData.append(key, value));
 
     try{
       setLoading(true);
-      document.getElementById("analysis-submit-label").textContent = "Scheduling background analysis";
+      document.getElementById("analysis-submit-label").textContent = "Scheduling tri-fusion analysis";
       const job = await createAnalysisJob(formData);
       const pendingJob = addPendingJob({
         jobId: job.job_id,
@@ -252,6 +264,7 @@ export function initAnalysisPage(){
         status: job.status,
         input: {
           fileName: selectedFile.name,
+          satelliteFileName: selectedSatelliteFile ? selectedSatelliteFile.name : null,
           tweet: tweetInput.value.trim(),
           sensors
         }
@@ -261,7 +274,7 @@ export function initAnalysisPage(){
         id: pendingJob.jobId,
         result: {
           alert_level: "Queued",
-          summary: "The analysis is now running in the background. You can move to any page and the result will be saved automatically when it completes.",
+          summary: "The tri-fusion analysis is running in the background. Results will include crisis, IoT, and satellite modalities as available.",
           disaster_type: "pending",
           priority: "pending",
           fused_severity: 0
