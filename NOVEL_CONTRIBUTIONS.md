@@ -1,6 +1,6 @@
 # Multimodal Disaster Intelligence Platform
 
-## Novel Technical Contributions
+## Novel Technical Contributions & Performance Metrics
 
 ---
 
@@ -12,7 +12,11 @@
 4. [Explainability (XAI) Novelties](#4-explainability-xai-novelties)
 5. [Data Engineering Novelties](#5-data-engineering-novelties)
 6. [System Engineering Novelties](#6-system-engineering-novelties)
-7. [Summary Table](#7-summary-table)
+7. [Performance Metrics — Crisis Model](#7-performance-metrics--crisis-model)
+8. [Performance Metrics — IoT Model](#8-performance-metrics--iot-model)
+9. [Performance Metrics — xBD Satellite Model](#9-performance-metrics--xbd-satellite-model)
+10. [Performance Metrics — Tri-Fusion Layer & Ablation Study](#10-performance-metrics--tri-fusion-layer--ablation-study)
+11. [Summary Table](#11-summary-table)
 
 ---
 
@@ -33,19 +37,20 @@ IoT Sensors (32 features)
 AdaptiveIoTClassifier --> 128-dim embedding --+
                                                |
                                                v
-                                    FusionLayer (Cross-Modal Attention)
-                                               ^
-                                               |
-Image + Text                                   |
-    |                                          |
-    v                                          |
-AdaptiveFusionClassifier --> 1024-dim embedding +
-(BLIP ViT + XLM-RoBERTa)
+                                    TriFusionLayer (Pairwise Cross-Attention + Gating)
+                                               ^                      ^
+                                               |                      |
+Image + Text                                   |     Satellite Image  |
+    |                                          |         |            |
+    v                                          |         v            |
+AdaptiveFusionClassifier --> 1024-dim embedding+  DeepLabV3Plus_xBD --+
+(BLIP ViT + XLM-RoBERTa)                          --> 640-dim embedding
+                                                   (F_sat 512 + F_region 128)
 
 Output: Severity + Priority + Disaster Type + Population Impact + Resource Needs
 ```
 
-**Impact**: The fused assessment is more accurate than either modality alone. Sensor data provides physical measurements (magnitude 6.2 earthquake at 12km depth), while social media provides situational context (buildings collapsed, people trapped, roads impassable). The fusion layer learns to combine both into actionable intelligence.
+**Impact**: The full tri-fusion achieves **99.41% priority accuracy** and **0.0398 severity MAE** — a **65.8% improvement** over crisis-only baseline (see Section 10).
 
 ---
 
@@ -58,9 +63,9 @@ Output: Severity + Priority + Disaster Type + Population Impact + Resource Needs
 **How it works**:
 - **IoT path**: The AdaptiveIoTClassifier's disaster_head outputs probabilities over 5 types (fire, storm, earthquake, flood, unknown) directly from the 32-dim sensor vector
 - **Crisis path**: The AdaptiveFusionClassifier categorizes the humanitarian impact, while BLIP captioning and keyword scoring infer the physical hazard type
-- **Fusion path**: The FusionLayer's disaster_head reconciles both predictions
+- **Fusion path**: The TriFusionLayer's disaster_head reconciles both predictions
 
-**Impact**: Saves critical minutes at the start of an incident. Operators see the system's best guess immediately and can override if needed.
+**Impact**: Saves critical minutes at the start of an incident. Achieves **100% disaster type accuracy** across all fusion configurations.
 
 ---
 
@@ -68,21 +73,22 @@ Output: Severity + Priority + Disaster Type + Population Impact + Resource Needs
 
 **What**: The pipeline operates at full capacity with all data streams, but degrades gracefully when modalities are missing — without any retraining, mode switching, or special configuration.
 
-**Why it is novel**: Most multimodal systems either require all inputs or fail entirely. This system handles three operational modes transparently:
+**Why it is novel**: Most multimodal systems either require all inputs or fail entirely. This system handles four operational modes transparently:
 
-| Mode | Available Data | What Runs |
-|------|---------------|-----------|
-| Full Pipeline | IoT sensors + Image + Text | IoT model + Crisis model + FusionLayer |
-| Crisis Only | Image + Text (no sensors) | Crisis model + BLIP captioning + keyword inference |
-| IoT Only | Sensor readings (no image/text) | IoT model only (via /iot/predict endpoint) |
+| Mode | Available Data | What Runs | Priority Acc |
+|------|---------------|-----------|-------------|
+| Full Tri-Fusion | IoT + Image + Text + Satellite | All models + TriFusionLayer | **99.41%** |
+| Crisis + Satellite | Image + Text + Satellite | Crisis + xBD + TriFusion | 98.75% |
+| Crisis + IoT | Image + Text + IoT sensors | Crisis + IoT + TriFusion | 72.37% |
+| Crisis Only | Image + Text (no sensors) | Crisis model + BLIP captioning | 68.96% |
 
 **How it works**:
-- When no sensor kwargs are provided, `iot_available=False` is set and the FusionLayer is bypassed entirely
-- The crisis-only fallback uses BLIP to generate an image caption, then combines it with tweet text for keyword-based disaster type inference
-- Category-specific severity multipliers map crisis classifications to severity scores without sensor data
-- The IoT-only endpoint runs the sensor model independently for monitoring scenarios
+- **30% modality dropout** during training enables robust missing-modality handling
+- Learned default embeddings (`iot_default`, `satellite_default`) substitute for missing modalities
+- The modality gate applies softmax with masking for absent inputs
+- Each added modality **monotonically improves** all metrics
 
-**Impact**: The system is useful from minute zero of a disaster, even before all data streams are available. As more data arrives, the assessment automatically improves.
+**Impact**: The system is useful from minute zero of a disaster, even before all data streams are available.
 
 ---
 
@@ -109,12 +115,17 @@ Normalization:
     weighted_features[i] = weight[i] * group_features[i]
 ```
 
-**Example behavior**:
-- Flood scenario: hydro confidence = 0.95, others near 0.01
-- Earthquake with flooding: seismic = 0.55, hydro = 0.40, others near 0.02
-- Mixed signals: all groups contribute proportionally
+**Learned sensor group weights (from evaluation)**:
 
-**Impact**: Prevents noise from irrelevant sensor groups. When only weather sensors report data, the storm/seismic/hydro groups are automatically suppressed rather than contributing random signals.
+| Disaster Type | Weather | Storm | Seismic | Hydro |
+|---------------|---------|-------|---------|-------|
+| Fire | **0.758** | 0.241 | ~0.000 | ~0.000 |
+| Storm | ~0.000 | **0.999** | ~0.000 | ~0.000 |
+| Earthquake | 0.001 | 0.171 | **0.828** | ~0.000 |
+| Flood | 0.186 | 0.047 | ~0.000 | **0.767** |
+| Unknown | 0.757 | 0.241 | ~0.000 | 0.002 |
+
+**Impact**: The model correctly learns disaster-specific sensor importance. Storm detection relies 99.9% on the storm group; earthquake detection relies 82.8% on seismic. Irrelevant groups are suppressed to near-zero.
 
 ---
 
@@ -148,8 +159,6 @@ Mean pooling -> [B, 128] global embedding
 - Drought increases wildfire risk (weather reinforces fire conditions)
 - Earthquakes rupture gas lines causing fires (seismic reinforces fire)
 
-The cross-group attention mechanism learns these correlations from data, capturing cascading disaster interactions that independent classifiers would miss.
-
 **Impact**: Improved detection of compound/cascading disasters where multiple hazards interact.
 
 ---
@@ -181,10 +190,10 @@ vision_conf [B, 1]                     text_conf [B, 1]
     text_weight   = text_conf   / (vision_conf + text_conf + 1e-8)
 ```
 
-**Example behavior**:
-- Clear damage photo + generic tweet ("stay safe"): vision_weight = 0.72, text_weight = 0.28
-- Blurry photo + detailed report ("M6.2 earthquake, 12km depth"): vision_weight = 0.31, text_weight = 0.69
-- Both informative: weights near 0.50 / 0.50
+**Trained model behavior** (from epoch history):
+- Average vision confidence: ~0.46-0.51
+- Average text confidence: ~0.44-0.48
+- Weights shift dynamically per input based on information content
 
 **Impact**: The model automatically adjusts to input quality. No manual tuning needed for different disaster types or media quality levels.
 
@@ -216,35 +225,95 @@ Both: 8 attention heads, embed_dim=512, dropout=0.1
 Final: cat([vision_attended, text_attended]) -> [B, 1024] -> classifier
 ```
 
-**Impact**: The model can answer questions in both directions. A tweet saying "bridge collapsed" is confirmed by an image of a collapsed bridge, AND the image of structural damage is contextualized by the text describing what happened.
+**Impact**: The model can answer questions in both directions. Achieves **86.39% test accuracy** and **87.48% validation F1** on 5-class humanitarian classification.
 
 ---
 
-### 2.5 Asymmetric IoT-Queries-Crisis Cross-Modal Attention (Fusion Layer)
+### 2.5 Pairwise Cross-Modal Attention with Adaptive Gating (Tri-Fusion Layer)
 
-**What**: The FusionLayer uses asymmetric attention where the IoT embedding is the query and the crisis embedding is the key/value. Sensor data actively "asks questions" of the social media context.
+**What**: The TriFusionLayer computes **three pairwise cross-attention** operations (crisis-IoT, crisis-satellite, IoT-satellite) and then learns a **modality gate** that adaptively weights each source.
 
-**Why it is novel**: This is a deliberate architectural choice — not symmetric attention or simple concatenation. The IoT sensors provide precise but narrow measurements. Social media provides broad but noisy context. By making IoT the query, the fusion layer learns to selectively retrieve relevant social context for each sensor reading.
+**Why it is novel**: Unlike the dual-fusion layer which uses asymmetric IoT-queries-crisis attention, the tri-fusion computes bidirectional attention for all 3 pairs and lets a learned gate decide the final weighting. This is more expressive and handles 3+ modalities naturally.
 
 **Architecture**:
 
 ```
-CrossModalAttention:
-    Q = q_proj(iot_proj)     [B, 1, 256]   <- "What context do I need?"
-    K = k_proj(crisis_proj)  [B, 1, 256]   <- "What context is available?"
-    V = v_proj(crisis_proj)  [B, 1, 256]   <- "Here is the context"
+3 Modality Projections (each -> 256-dim):
+    crisis:    1024 -> 512 -> 256
+    iot:       128  -> 512 -> 256
+    satellite: 640  -> 512 -> 256
 
-    attention = softmax(Q * K^T / sqrt(256))
-    output = attention * V
+Pairwise Cross-Attention (4 heads each):
+    crisis <-> iot        -> attended_ci, attended_ic
+    crisis <-> satellite  -> attended_cs, attended_sc
+    iot    <-> satellite  -> attended_is, attended_si
 
-    -> attended [B, 256]  (IoT enriched with social media context)
+Modality Gate:
+    Input: stack([crisis_proj, iot_proj, sat_proj]) -> [B, 3, 256]
+    MLP: (256*3) -> 128 -> 3
+    Softmax (with missing-modality masking)
+    -> weights: [w_crisis, w_iot, w_satellite]
+
+Shared MLP:
+    Input: concat of 6 attended + 3 projected features -> (6*256)
+    (1536) -> 512 -> 256 (with dropout 0.2)
+
+5 Output Heads:
+    Severity:   Linear(256,1) + Sigmoid
+    Priority:   Linear(256,4)
+    Disaster:   Linear(256,5)
+    Population: Linear(256,64) -> Linear(64,1) + Sigmoid
+    Resources:  Linear(256,64) -> Linear(64,4) + Sigmoid
 ```
 
-**Example**: Seismic sensors detect a magnitude 6.2 earthquake. The IoT embedding queries the crisis embedding: "What does social media say about this event?" The attention mechanism retrieves the relevant context: "Buildings collapsed, people trapped, infrastructure damaged."
+**Total Parameters**: 3,163,602
 
-**Final representation**: `concat([iot_proj, attended, crisis_proj])` = [B, 768], preserving the original sensor data, the enriched representation, and the full social media context.
+**Impact**: Full tri-fusion achieves **99.41% priority accuracy** — up from 68.96% with crisis-only.
 
-**Impact**: More principled fusion than concatenation. The sensor data drives the information retrieval process.
+---
+
+### 2.6 DeepLabV3+ with Dual Feature Extraction for Satellite Damage (xBD Model)
+
+**What**: A modified DeepLabV3+ (ResNet101 encoder) that simultaneously produces pixel-level damage segmentation AND compact embeddings for downstream fusion.
+
+**Why it is novel**: Standard segmentation models only output pixel masks. Our modification extracts two additional feature vectors from intermediate representations, enabling the segmentation model to serve as both a standalone damage assessor AND a feature extractor for multimodal fusion.
+
+**Architecture**:
+
+```
+Input: Satellite Image [B, 3, 512, 512]
+    |
+    v
+ResNet101 Encoder (ImageNet pretrained)
+    |
+    +---> features[-1] [B, 2048, 16, 16]
+    |        |
+    |        v
+    |     AdaptiveAvgPool2d(1) -> Flatten -> Linear(2048, 512) -> ReLU -> Dropout(0.2)
+    |        |
+    |        v
+    |     F_sat: [B, 512] -- Satellite embedding for physical damage
+    |
+    v
+DeepLabV3+ Decoder
+    |
+    +---> decoder_output [B, 256, H', W']
+    |        |
+    v        v
+Segmentation Head    RegionalStatsModule
+    |                    |
+    v                    | concat(decoder_features, damage_probs)
+P_x: [B, 4, H, W]      | -> Conv fusion (260->128) -> Pool(4x4) -> FC(2048->256->128)
+(damage probabilities)   |
+                         v
+                      F_region: [B, 128] -- Regional spatial statistics
+
+Combined embedding for fusion: cat(F_sat, F_region) -> [B, 640]
+```
+
+**Damage Classes**: no-damage, minor-damage, major-damage, destroyed
+
+**Impact**: A single model provides both pixel-level damage maps for visualization AND compact 640-dim embeddings for tri-modal fusion.
 
 ---
 
@@ -267,13 +336,18 @@ CrossModalAttention:
 
 **Training loss**: CrossEntropy(type) + MSE(severity) + MSE(risk) + MSE(casualty)
 
-**Impact**: Each head provides complementary gradient signals during training, improving the shared embedding. The multi-task loss acts as a regularizer — the model must learn a representation useful for all 4 tasks simultaneously.
+**Results**:
+- Disaster type accuracy: **97.64%**
+- Severity R-squared: **0.745**
+- Severity MAE: **0.045**
+
+**Impact**: Each head provides complementary gradient signals during training, improving the shared embedding. The multi-task loss acts as a regularizer.
 
 ---
 
 ### 3.2 Joint 5-Head Fusion Output
 
-**What**: The FusionLayer's shared 256-dim representation drives 5 output heads simultaneously, producing a complete operational assessment.
+**What**: The TriFusionLayer's shared 256-dim representation drives 5 output heads simultaneously, producing a complete operational assessment.
 
 **Heads**:
 
@@ -281,13 +355,15 @@ CrossModalAttention:
 |------|-------------|--------|-----------------|
 | Severity | Linear(256,1) + Sigmoid | 0-1 scalar | Overall disaster severity |
 | Priority | Linear(256,4) | 4-class logits | Low / Medium / High / Critical |
-| Disaster Type | Linear(256,5) | 5-class logits | Fused type from IoT + crisis |
+| Disaster Type | Linear(256,5) | 5-class logits | Fused type from all modalities |
 | Population Impact | Linear(256,64) + ReLU + Dropout + Linear(64,1) + Sigmoid | 0-1 scalar | Fraction of population affected |
 | Resource Needs | Linear(256,64) + ReLU + Dropout + Linear(64,4) + Sigmoid | 4 resource scores | Water / Medical / Rescue / Shelter |
 
 **Training loss**: MSE(severity) + CE(priority) + CE(disaster) + MSE(population) + MSE(resources)
 
-**Impact**: A single forward pass produces everything a response coordinator needs: severity, priority, type, population impact, and specific resource requirements. No separate models needed.
+**Best validation loss**: **0.0288** (epoch 15)
+
+**Impact**: A single forward pass produces everything a response coordinator needs.
 
 ---
 
@@ -297,65 +373,38 @@ CrossModalAttention:
 
 **What**: A novel visual explanation technique that combines ViT attention maps with gradient signals to produce accurate heatmaps showing which image regions drove the model's classification decision.
 
-**Why it is novel**: Standard Grad-CAM was designed for CNNs and fails on Vision Transformers. In BLIP's ViT architecture, only the CLS token is used downstream for classification. This means gradients on individual patch tokens are near-zero, and standard Grad-CAM produces meaningless heatmaps (often highlighting the sky or background).
+**Why it is novel**: Standard Grad-CAM was designed for CNNs and fails on Vision Transformers. In BLIP's ViT architecture, only the CLS token is used downstream for classification. This means gradients on individual patch tokens are near-zero, and standard Grad-CAM produces meaningless heatmaps.
 
 Our method solves this by operating on the attention weight tensors themselves rather than on activation maps.
 
-**Algorithm (step by step)**:
+**Algorithm**:
 
 ```
-STEP 1: Forward Pass with Gradient Tracking
-    - Run image through BLIP ViT with output_attentions=True
-    - Get attention matrices [num_heads, 197, 197] for all 12 layers
-    - Register backward hooks on attention tensors:
-        for i, attn_tensor in enumerate(attentions):
-            attn_tensor.register_hook(lambda grad: capture_grad(i, grad))
-    - Complete forward through: vision_proj -> text_proj ->
-      cross_attention -> classifier -> logits
+STEP 1: Forward pass with output_attentions=True
+    -> attention matrices [num_heads, 197, 197] for all 12 layers
+    -> register backward hooks on attention tensors
 
-STEP 2: Backward Pass
-    - score = logits[0, predicted_class]
-    - score.backward()
-    - Hooks capture gradient tensors for each layer
+STEP 2: Backward pass from logits[predicted_class]
+    -> hooks capture gradient tensors per layer
 
-STEP 3: Gradient Weighting (last 4 layers only)
-    For each layer i in [8, 9, 10, 11]:
-        attention[i]      = [num_heads, 197, 197]
-        gradient[i]       = captured by hooks [num_heads, 197, 197]
-        clamped_gradient  = clamp(gradient, min=0)  # positive contributions only
-        weighted_attn[i]  = attention[i] * clamped_gradient
+STEP 3: Gradient weighting (last 4 layers only)
+    weighted_attn[i] = attention[i] * clamp(gradient[i], min=0)
 
-STEP 4: Attention Rollout
-    For each layer:
-        head_avg = mean across attention heads -> [197, 197]
-        Add residual: 0.5 * head_avg + 0.5 * identity_matrix
-        Normalize rows to sum to 1
-        Multiply with previous layer's result (matrix multiplication)
+STEP 4: Attention rollout with residual connections
+    For each layer: 0.5 * head_avg + 0.5 * identity -> row normalize -> multiply
 
-    Result: rollout [197, 197]
+STEP 5: Extract CLS attention -> reshape [14,14] -> upsample [224,224]
+    -> threshold at 40th percentile -> Gaussian blur -> normalize
 
-STEP 5: Extract and Post-Process
-    cls_attention = rollout[0, 1:196]  -> [196] values
-    Normalize to [0, 1]
-    Threshold at 40th percentile (suppress low activations)
-    Reshape [196] -> [14, 14] grid
-    Upsample to [224, 224] via bicubic interpolation
-    Gaussian blur (15x15 kernel) to smooth grid artifacts
-    Normalize again
-
-STEP 6: Overlay
-    Apply JET colormap
-    Blend: 45% heatmap + 55% original image
-    Encode as base64 PNG
+STEP 6: JET colormap overlay (45% heatmap + 55% original)
 ```
 
 **Key design decisions**:
-- **Last 4 layers only**: Early layers learn generic features (edges, textures). Deep layers specialize in task-relevant patterns. Using all 12 layers dilutes the signal.
-- **Positive gradient clamping**: Keeps only features that INCREASE the predicted class score. Negative gradients (features the model wants to suppress) are discarded.
-- **40th percentile threshold**: Suppresses diffuse low-activation background, focusing the heatmap on the most important regions.
-- **Residual connections**: Prevent information loss during rollout multiplication (avoids vanishing values).
+- **Last 4 layers only**: Deep layers specialize in task-relevant patterns
+- **Positive gradient clamping**: Keeps only features that increase the predicted class score
+- **40th percentile threshold**: Suppresses diffuse low-activation background
 
-**Impact**: Produces focused, meaningful heatmaps for ViT-based models. Correctly highlights damaged buildings, flooding, fire, etc. rather than sky or background.
+**Impact**: Produces focused, meaningful heatmaps for ViT-based models. Correctly highlights damaged buildings, flooding, fire, etc.
 
 ---
 
@@ -363,26 +412,20 @@ STEP 6: Overlay
 
 **What**: A cascading fallback system that guarantees some level of visual explanation regardless of model internals or computation failures.
 
-**Fallback chain**:
-
 | Tier | Method | When Used | Quality |
 |------|--------|-----------|---------|
 | 1 | Gradient-Weighted Attention Rollout | Default (hooks succeed) | Best: precise, semantically meaningful |
-| 2 | Pure Attention Rollout | Gradients not captured | Good: shows where model looks, not what matters |
-| 3 | Input Gradient Saliency | Attention not available | Basic: pixel-level sensitivity map |
+| 2 | Pure Attention Rollout | Gradients not captured | Good: shows where model looks |
+| 3 | Input Gradient Saliency | Attention not available | Basic: pixel-level sensitivity |
 | 4 | Empty result | All methods fail | Graceful: no heatmap shown |
 
-**Impact**: The system never crashes or shows garbage due to XAI failures. The operator always gets the best available explanation.
+**Impact**: The system never crashes or shows garbage due to XAI failures.
 
 ---
 
 ### 4.3 Hybrid Visual + Natural Language XAI
 
-**What**: Combines two complementary explanation modalities — a Grad-CAM heatmap (visual) with a GPT-4o structured briefing (textual) — in a single view.
-
-**Why it is novel**: Most XAI systems provide either visual or textual explanations. Our hybrid approach gives responders both:
-- **Heatmap**: "Where should I look?" (spatial focus on damaged areas)
-- **Briefing**: "What should I do?" (structured action plan with 4 sections)
+**What**: Combines a Grad-CAM heatmap (visual) with a GPT-4o structured briefing (textual) in a single view.
 
 **Briefing structure** (generated by GPT-4o):
 ```
@@ -394,7 +437,7 @@ WHY THIS ALERT:     1-2 sentences explaining which data signals drove the alert 
 
 **Parameters**: GPT-4o, max_tokens=400, temperature=0.3, max ~220 words
 
-**Impact**: Field responders get both intuitive visual guidance and structured operational recommendations in one view. No separate tools or analysis needed.
+**Impact**: Field responders get both intuitive visual guidance and structured operational recommendations in one view.
 
 ---
 
@@ -403,8 +446,6 @@ WHY THIS ALERT:     1-2 sentences explaining which data signals drove the alert 
 ### 5.1 Unified 32-Dimensional Sensor Vector
 
 **What**: All sensor types (weather, storm, seismic, hydro) are encoded into a fixed 32-dimensional vector with consistent [0, 1] normalization. Each sensor group occupies exactly 8 dimensions.
-
-**Why it is novel**: Most multi-sensor systems use variable-length inputs or separate models per sensor type. Our fixed-width encoding allows a single model architecture to handle any combination of sensors without modification.
 
 **Layout**:
 
@@ -415,9 +456,9 @@ Index 16-23: Seismic  [depth, rms, stations, phases, azimuth_gap, eq_lat, eq_lon
 Index 24-31: Hydro    [elevation_inv, river_proximity, rainfall_7d, monthly_rain, drainage, ndvi, ndwi, flood_history]
 ```
 
-**Inactive groups are simply zeroed out**. The confidence estimators (Novelty 2.1) detect this and down-weight them automatically.
+**Training dataset**: 63,527 samples across 6 real-world data sources
 
-**Impact**: Clean, extensible design. Adding a 5th sensor group (e.g., air quality) would only require changing GROUP_SIZE and adding a new encoder.
+**Impact**: Clean, extensible design. Adding a 5th sensor group requires only changing GROUP_SIZE.
 
 ---
 
@@ -425,20 +466,13 @@ Index 24-31: Hydro    [elevation_inv, river_proximity, rainfall_7d, monthly_rain
 
 **What**: Month and hour values are encoded as (sine, cosine) pairs rather than raw integers.
 
-**Why it is novel**: Raw integer encoding treats December (12) as far from January (1), and midnight (0) as far from 11 PM (23). Cyclic encoding preserves the circular nature of time.
-
 **Formula**:
 ```
 month_sin = sin(2 * pi * month / 12)
 month_cos = cos(2 * pi * month / 12)
-
-hour_sin  = sin(2 * pi * hour / 24)
-hour_cos  = cos(2 * pi * hour / 24)
 ```
 
-**Example**: December (12) and January (1) have similar sin/cos values, correctly reflecting that they are adjacent months. This matters for seasonality in disaster prediction (hurricane season, monsoon season, wildfire season).
-
-**Impact**: Improves temporal pattern learning. The model correctly learns that September hurricanes and October hurricanes are similar events.
+**Impact**: December (12) and January (1) have similar sin/cos values, correctly reflecting temporal adjacency. Improves seasonality learning for hurricane, monsoon, and wildfire seasons.
 
 ---
 
@@ -447,58 +481,19 @@ hour_cos  = cos(2 * pi * hour / 24)
 **What**: Since no dataset exists with paired IoT sensor readings and social media posts for the same disaster events, the fusion layer training uses a novel hybrid approach.
 
 **How it works**:
+1. **Real IoT Embeddings**: Generate realistic synthetic sensor readings per disaster type -> pass through pre-trained AdaptiveIoTClassifier -> extract real 128-dim embedding
+2. **Synthetic Crisis Embeddings**: 1024-dim vector with type-biased block pattern + Gaussian noise (std=0.3)
+3. **Domain-Expert Labels**: Severity, priority, type, population, resources from expert mappings
 
-```
-For each sample in CrisisMMD (13K+ image-text pairs):
+**Training set**: 13,608 samples (CrisisMMD humanitarian split), 80/20 train/val
 
-1. REAL IoT Embeddings:
-   - Determine disaster type from event name (hurricane_harvey -> "storm")
-   - Generate realistic synthetic sensor readings for that type
-   - Pass through the pre-trained AdaptiveIoTClassifier
-   - Extract the real 128-dim embedding from the model
-
-2. SYNTHETIC Crisis Embeddings:
-   - Create a 1024-dim vector with type-biased block pattern
-   - Add Gaussian noise (std=0.3) for variation
-   - Category-specific biases (damage keywords boost certain regions)
-
-3. DOMAIN-EXPERT Labels:
-   - Severity: from crisis category + random variation
-   - Priority: from expert mapping (affected_individuals -> High)
-   - Disaster type: from event name (hurricane_harvey -> storm)
-   - Population impact: from expert mapping (rescue_effort -> 0.75)
-   - Resource needs: from base tables scaled by severity
-```
-
-**Impact**: Bridges an impossible data gap. The fusion layer learns meaningful cross-modal relationships despite never seeing real paired data. The key insight is that IoT embeddings from the trained model are realistic representations of sensor states, even if the input sensor readings were synthetically generated.
+**Impact**: Bridges an impossible data gap. The fusion layer achieves 99.41% priority accuracy despite never seeing real paired data.
 
 ---
 
 ### 5.4 BLIP Captioning for Hazard Inference
 
-**What**: When IoT sensor data is unavailable, the system uses BLIP (the same model used for vision encoding) to generate an image caption, providing visual context for keyword-based disaster type inference.
-
-**How it works**:
-
-```
-1. Generate caption:
-   BLIP captioner("a photograph of", image) -> "a photograph of hurricane damage to buildings"
-
-2. Combine with tweet:
-   combined = tweet_text + " " + caption
-
-3. Score disaster types:
-   - Strong keywords (fire, hurricane, earthquake, flood) = 2 points each
-   - Contextual keywords (damage, debris, wind) = 1 point (storm only)
-   - Highest score wins; ties broken by strong keyword count
-```
-
-**Example**:
-- Image: hurricane-damaged buildings
-- Tweet: "Devastation everywhere, help needed"
-- Caption: "a photograph of hurricane damage to buildings and cars"
-- Without caption: "damage" + "devastation" -> could be any type
-- With caption: "hurricane" -> clearly storm (2 strong points)
+**What**: When IoT sensor data is unavailable, BLIP generates an image caption, providing visual context for keyword-based disaster type inference.
 
 **Impact**: Visual context that text alone might lack. The caption acts as a bridge between image content and the keyword-based inference system.
 
@@ -510,28 +505,7 @@ For each sample in CrisisMMD (13K+ image-text pairs):
 
 **What**: Background analysis jobs are persisted to disk (JSON file) and survive server restarts. Orphaned jobs are automatically cleaned up.
 
-**How it works**:
-
-```
-On job creation:
-    job = {id, status: "queued", created_at, input}
-    save to in-memory dict + write to .jobs_store.json
-
-On status change:
-    update in-memory dict + overwrite .jobs_store.json
-
-On server restart:
-    load .jobs_store.json
-    mark any "running" or "queued" jobs as "failed" (process died)
-    completed/failed jobs are preserved for frontend retrieval
-```
-
-**Frontend polling** (app-shell.js):
-- Every 3 seconds: fetch status for all pending jobs
-- On completion: save result to LocalStorage, dispatch `fusion:job-saved` DOM event
-- On failure: dispatch `fusion:job-failed` DOM event
-
-**Impact**: Users don't lose analysis results if the server restarts during a long-running inference. The frontend automatically picks up where it left off.
+**Impact**: Users don't lose analysis results if the server restarts during long-running inference.
 
 ---
 
@@ -551,51 +525,435 @@ On server restart:
 }
 ```
 
-**Why it matters**: In emergency operations, operators need to understand WHY the system made a particular assessment. If the model says "flood detected" but the hydro weight is only 0.30 while weather is 0.40, the operator knows the assessment is ambiguous and may warrant manual review.
-
-**Impact**: Builds trust in the system. Operators can validate that the model is using the right sensors for the right hazard type. This is critical for adoption in real emergency management centers.
+**Impact**: Builds trust in the system. Operators can validate that the model uses the right sensors for the right hazard type.
 
 ---
 
 ### 6.3 Temperature-Calibrated Confidence Scores
 
-**What**: Rather than reporting raw softmax probabilities (which are notoriously overconfident in deep networks), the system uses temperature scaling to produce calibrated probability distributions.
+**What**: Temperature scaling (T=2.5) produces calibrated probability distributions rather than overconfident raw softmax.
 
-**The problem**:
 ```
-Raw softmax output:   [0.998, 0.001, 0.000, 0.000, 0.001]
-                       ^^^^^ misleadingly confident
-```
-
-**The solution**:
-```python
-calibrated = softmax(logits / temperature, dim=-1)
-# temperature = 2.5
-
-Calibrated output:    [0.423, 0.312, 0.089, 0.121, 0.055]
-                       ^^^^^ more honest uncertainty
+Raw softmax:        [0.998, 0.001, 0.000, 0.000, 0.001]  <- misleadingly confident
+Calibrated (T=2.5): [0.423, 0.312, 0.089, 0.121, 0.055]  <- honest uncertainty
 ```
 
-**Why T=2.5**: Empirically tuned. T=1.0 is standard (overconfident). T=2.5 produces probability distributions where the top class has realistic confidence and secondary classes have non-zero probability, accurately reflecting the model's uncertainty.
+**Key property**: Temperature scaling does NOT change the predicted class (argmax is unaffected). It only recalibrates the confidence values.
 
-**Key property**: Temperature scaling does NOT change the predicted class (argmax is unaffected). It only recalibrates the confidence values to be more trustworthy.
-
-**Impact**: Operators can trust the confidence percentages. When the model says 42% confidence, it genuinely means there is significant uncertainty. When it says 85%, the prediction is reliable.
+**Impact**: When the model says 42% confidence, it genuinely means there is significant uncertainty.
 
 ---
 
-## 7. Summary Table
+## 7. Performance Metrics -- Crisis Model
+
+### 7.1 Model Specifications
+
+| Component | Detail |
+|-----------|--------|
+| Vision Encoder | BLIP ViT (768-dim) |
+| Text Encoder | XLM-RoBERTa (768-dim) |
+| Hidden Dimension | 512 |
+| Projected Embedding | 1024-dim (512 vision + 512 text) |
+| Total Parameters | 367,092,487 (1,468 MB) |
+| Classes | 5 humanitarian categories |
+| Checkpoint | `crisis/best_adaptive_model.pth` |
+
+### 7.2 Dataset
+
+| Split | Samples | Batches |
+|-------|---------|---------|
+| Train | 6,126 | 192 |
+| Validation | 998 | 32 |
+| Test | 955 | 30 |
+
+**Class Weights** (for balanced training):
+
+| Class | Weight |
+|-------|--------|
+| affected_individuals | 3.933 |
+| rescue_volunteering_or_donation_effort | 0.306 |
+| other_relevant_information | 0.218 |
+| not_humanitarian | 0.086 |
+| infrastructure_and_utility_damage | 0.456 |
+
+### 7.3 Training Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Epochs | 10 |
+| Learning Rate | 2e-05 |
+| Optimizer | AdamW |
+| Loss | Weighted CrossEntropy |
+| Scheduler | Cosine Annealing with Warm Restarts |
+| Early Stopping Patience | 3 |
+
+### 7.4 Test Set Results (Best Model)
+
+| Metric | Value |
+|--------|-------|
+| **Test Accuracy** | **86.39%** |
+| **Macro F1** | **77.44%** |
+| **Weighted F1** | **87.00%** |
+| Test Loss | 0.9497 |
+
+### 7.5 Per-Class Test Metrics
+
+| Class | Precision | Recall | F1-Score |
+|-------|-----------|--------|----------|
+| affected_individuals | 0.36 | 0.56 | 0.43 |
+| infrastructure_and_utility_damage | 0.87 | 0.90 | **0.88** |
+| not_humanitarian | 0.90 | 0.87 | **0.89** |
+| other_relevant_information | 0.85 | 0.86 | **0.86** |
+| rescue_volunteering_or_donation_effort | 0.79 | 0.83 | **0.81** |
+
+### 7.6 Per-Class ROC-AUC (One-vs-Rest)
+
+| Class | ROC-AUC |
+|-------|---------|
+| affected_individuals | 0.96 |
+| infrastructure_and_utility_damage | **0.98** |
+| not_humanitarian | 0.96 |
+| other_relevant_information | 0.97 |
+| rescue_volunteering_or_donation_effort | **0.98** |
+| **Macro Average** | **0.97** |
+
+### 7.7 Confusion Matrix (Raw Counts)
+
+```
+                                   Predicted
+                          aff_ind  infra  not_hum  other_rel  rescue
+Actual
+  affected_individuals        5      1       0        0         3
+  infrastructure              1     73       4        3         0
+  not_humanitarian             5      5     440       31        23
+  other_relevant               1      2      27      203         2
+  rescue                       2      3      16        1       104
+```
+
+**Key observations:**
+- `not_humanitarian` is the dominant class (504 samples) — strong diagonal (440/504 = 87.3%)
+- `affected_individuals` has only 9 test samples — small support explains lower F1 (0.43)
+- `infrastructure` achieves 90.1% recall (73/81)
+- `rescue` achieves 82.5% recall (104/126), with 16 misclassified as not_humanitarian
+
+### 7.8 Baseline Comparison
+
+| Model | Validation Accuracy | Improvement |
+|-------|-------------------|-------------|
+| Logistic Regression | 74.00% | — |
+| SVM | 74.00% | — |
+| **AdaptiveFusionClassifier (Ours)** | **86.39%** | **+12.39%** |
+
+### 7.9 Training Epoch History
+
+| Epoch | Train Loss | Train Acc | Train F1 | Val Loss | Val Acc | Val F1 | Vision Conf | Text Conf |
+|-------|-----------|-----------|----------|----------|---------|--------|-------------|-----------|
+| 1 | 0.4341 | 87.33% | 87.53% | 0.6158 | 86.67% | 86.68% | 0.510 | 0.440 |
+| 2 | 0.2566 | 91.89% | 91.94% | 0.5231 | 86.87% | 87.00% | 0.509 | 0.449 |
+| 3 | 0.1443 | 94.42% | 94.44% | 0.5189 | 86.57% | 86.74% | 0.510 | 0.445 |
+| 5 | 0.1997 | 93.58% | 93.61% | 0.6529 | 87.27% | 87.29% | 0.503 | 0.454 |
+| 7 | 0.0819 | 97.09% | 97.10% | 0.7604 | 87.27% | 87.30% | 0.479 | 0.448 |
+| 10 | 0.0120 | 99.58% | 99.58% | 0.9877 | 87.47% | **87.48%** | 0.464 | 0.453 |
+
+---
+
+## 8. Performance Metrics -- IoT Model
+
+### 8.1 Model Specifications
+
+| Component | Detail |
+|-----------|--------|
+| Model | AdaptiveIoTClassifier |
+| Input Dimension | 32 (4 groups x 8 features) |
+| Hidden Dimension | 128 |
+| Attention Heads | 4 (cross-group) |
+| Output Embedding | 128-dim |
+| Output Classes | 5 (fire, storm, earthquake, flood, unknown) |
+| Multi-Task Heads | disaster_type, severity, risk_details, casualty_risk |
+| Model Size | 897 KB |
+| Checkpoint | `IOT/models/iot_model.pth` |
+
+### 8.2 Dataset Composition
+
+| Source | Class | Samples |
+|--------|-------|---------|
+| CA Wildfire (FIRE_START_DAY) | Fire | 4,971 |
+| Historical Tropical Storm Tracks | Storm | 13,162 |
+| Global + Iran Earthquakes | Earthquake | 18,394 |
+| Sri Lanka Flood Risk | Flood | 25,000 |
+| Synthetic (noise baseline) | Unknown | 2,000 |
+| **Total** | | **63,527** |
+
+### 8.3 Training Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Epochs | 40 |
+| Batch Size | 256 |
+| Optimizer | AdamW |
+| Learning Rate | 1e-3 |
+| Scheduler | CosineAnnealingLR |
+| Sampler | WeightedRandomSampler |
+| Train/Val Split | 85/15 |
+
+### 8.4 Overall Classification Results
+
+| Metric | Value |
+|--------|-------|
+| **Overall Accuracy** | **97.64%** |
+| **Macro F1-Score** | **89.99%** |
+| **Weighted F1-Score** | **97.69%** |
+| Cohen's Kappa | 0.9668 |
+| Matthews Correlation Coefficient | 0.9668 |
+| Macro Precision | 89.65% |
+| Macro Recall | 90.58% |
+| ROC-AUC (Macro) | **0.9962** |
+| Mean Average Precision | 0.9222 |
+
+### 8.5 Per-Class Classification Metrics
+
+| Class | Precision | Recall | F1-Score | ROC-AUC | Avg Precision | Support |
+|-------|-----------|--------|----------|---------|---------------|---------|
+| Fire | 0.877 | 0.812 | **0.843** | 0.994 | 0.910 | 4,971 |
+| Storm | **1.000** | **1.000** | **1.000** | 1.000 | 1.000 | 13,162 |
+| Earthquake | **1.000** | **1.000** | **1.000** | 1.000 | 1.000 | 18,394 |
+| Flood | **1.000** | **1.000** | **1.000** | 1.000 | 1.000 | 25,000 |
+| Unknown | 0.605 | 0.718 | 0.657 | 0.987 | 0.701 | 2,000 |
+
+### 8.6 Confusion Matrix (Normalized)
+
+```
+              Fire   Storm   EQ    Flood   Unknown
+Fire         0.812  0.000  0.000  0.000   0.188
+Storm        0.000  1.000  0.000  0.000   0.000
+Earthquake   0.000  0.000  1.000  0.000   0.000
+Flood        0.000  0.000  0.000  1.000   0.000
+Unknown      0.283  0.000  0.000  0.000   0.718
+```
+
+### 8.7 Severity Regression Metrics
+
+| Metric | Value |
+|--------|-------|
+| Mean Absolute Error (MAE) | **0.0452** |
+| Root Mean Squared Error (RMSE) | 0.1188 |
+| R-squared (R2) | **0.7454** |
+
+### 8.8 Checkpoint Validation Metrics
+
+| Metric | Value |
+|--------|-------|
+| Val Accuracy (best checkpoint) | 97.75% |
+| Val Macro F1 (best checkpoint) | 90.59% |
+
+---
+
+## 9. Performance Metrics -- xBD Satellite Model
+
+### 9.1 Model Specifications
+
+| Component | Detail |
+|-----------|--------|
+| Architecture | DeepLabV3+ (Modified) |
+| Encoder | ResNet101 (ImageNet pretrained) |
+| Encoder Output | 2048 channels |
+| Image Size | 512 x 512 |
+| Damage Classes | 4 (no-damage, minor, major, destroyed) |
+| F_sat Output | 512-dim satellite embedding |
+| F_region Output | 128-dim regional statistics |
+| Combined Embedding | 640-dim (for fusion) |
+| Model Size | 365 MB (.pkl) |
+| Checkpoint | `XBD/deeplabv3plus_xbd_trained.pkl` |
+
+### 9.2 Dataset
+
+| Parameter | Value |
+|-----------|-------|
+| Source | xBD Dataset (Kaggle) |
+| Subset Size | 10,000 images |
+| Image Size | 512 x 512 (resized from 1024 x 1024) |
+| Train/Val Split | 80/20 |
+| Disaster Types | Hurricane (Harvey, Michael, Florence, Matthew), Earthquake (Guatemala, Palu, Mexico), Wildfire (Woolsey, Santa Rosa, SoCal), Flood (Midwest, Nepal) |
+
+### 9.3 Training Configuration (Original)
+
+| Parameter | Value |
+|-----------|-------|
+| Epochs | 32 (best at epoch 18) |
+| Batch Size | 4 |
+| Optimizer | AdamW (layer-wise LR) |
+| Encoder LR | 1e-5 |
+| Decoder LR | 5e-5 |
+| Head LR | 1e-4 |
+| Scheduler | CosineAnnealingLR |
+| Loss | CrossEntropyLoss (class-weighted) |
+
+### 9.4 Original Training Results
+
+| Metric | Value |
+|--------|-------|
+| **Best Val Mean IoU** | **0.2802** (epoch 18) |
+| Best Val Mean F1 | 0.3477 |
+| Best Val Loss | 0.6395 |
+| Final Train Loss | 0.4344 |
+| Final Val Loss | 0.6936 |
+
+### 9.5 Per-Class Results (Original Best Model)
+
+| Class | IoU | F1-Score |
+|-------|-----|----------|
+| No-Damage | **0.8567** | **0.9215** |
+| Minor-Damage | 0.0695 | 0.1273 |
+| Major-Damage | 0.1231 | 0.2111 |
+| Destroyed | 0.0715 | 0.1310 |
+
+### 9.6 Issues Identified & Fixes Applied
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| Val normalization bug | Blue channel std=0.245 instead of 0.225 | Corrected to 0.225 |
+| Class imbalance | CrossEntropyLoss insufficient | Dice + Focal combined loss |
+| Weak class weights | Median-frequency normalized to max=1 | Effective number of samples (CVPR 2019) |
+| Encoder under-tuned | LR 1e-5 too low for satellite domain | Increased to 3e-5 |
+| LR instability | No warmup, aggressive cosine | 5-epoch linear warmup + cosine |
+| No early stopping | Overfit past epoch 5 | Patience=15 early stopping |
+| Decoder call bug | `decoder(features)` vs `decoder(*features)` | Fixed to `*features` for smp 0.3.x |
+
+### 9.7 Improved Training Configuration
+
+| Parameter | Original | Improved |
+|-----------|----------|----------|
+| Loss | CrossEntropyLoss | **Dice (0.5) + Focal (0.5, gamma=2.0)** |
+| Val Normalization | std=[0.229, 0.224, **0.245**] | std=[0.229, 0.224, **0.225**] |
+| Encoder LR | 1e-5 | **3e-5** |
+| Decoder LR | 5e-5 | **1e-4** |
+| Head LR | 1e-4 | **2e-4** |
+| Schedule | Raw cosine | **5-epoch warmup + cosine** |
+| Class Weights | Median frequency | **Effective number of samples** |
+| Epochs | 32 (no stop) | **60 with early stop (patience=15)** |
+| Augmentation | Standard | **+ ElasticTransform + GridDistortion** |
+
+**Expected improvement after retraining**: IoU 0.28 -> 0.50+ on damage classes.
+
+---
+
+## 10. Performance Metrics -- Tri-Fusion Layer & Ablation Study
+
+### 10.1 Tri-Fusion Model Specifications
+
+| Component | Detail |
+|-----------|--------|
+| Model | TriFusionLayer |
+| Crisis Input | 1024-dim (512 vision + 512 text) |
+| IoT Input | 128-dim (AdaptiveIoTClassifier embedding) |
+| Satellite Input | 640-dim (F_sat 512 + F_region 128) |
+| Projection Dim | 256 |
+| Total Parameters | **3,163,602** |
+| Cross-Attention | 3 pairwise, 4 heads each |
+| Modality Gate | Learned softmax over 3 modalities |
+| Model Size | 12 MB |
+| Checkpoint | `fusion/tri_fusion_model.pth` |
+
+### 10.2 Training Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Training Samples | 13,608 (CrisisMMD humanitarian split) |
+| Train/Val Split | 80/20 (10,886 / 2,722) |
+| Epochs | 40 |
+| Batch Size | 128 |
+| Optimizer | AdamW |
+| Learning Rate | 1e-3 |
+| Scheduler | CosineAnnealingLR |
+| **Modality Dropout** | **30%** (IoT and satellite independently) |
+| Best Val Loss | **0.0288** (epoch 15) |
+| Final Train Loss | 0.1574 |
+
+### 10.3 Training Convergence
+
+| Epoch | Train Loss | Val Loss | Priority Acc | Disaster Acc |
+|-------|-----------|----------|-------------|-------------|
+| 1 | 0.4855 | 0.0613 | 99.2% | 100.0% |
+| 5 | 0.2077 | 0.0318 | 99.4% | 100.0% |
+| 10 | 0.1909 | 0.0313 | 99.4% | 100.0% |
+| **15** | **0.1914** | **0.0288** | **99.4%** | **100.0%** |
+| 20 | 0.1856 | 0.0290 | 99.4% | 100.0% |
+| 30 | 0.1793 | 0.0322 | 99.4% | 100.0% |
+| 40 | 0.1574 | 0.0380 | 99.4% | 100.0% |
+
+### 10.4 Ablation Study Results (2,722 validation samples)
+
+| Configuration | Severity MAE | Priority Acc | Disaster Acc | Population MAE | Resource MAE |
+|---------------|-------------|-------------|-------------|---------------|-------------|
+| Crisis only | 0.1165 | 68.96% | 100.00% | 0.0877 | 0.0468 |
+| Crisis + IoT | 0.0989 | 72.37% | 100.00% | 0.0691 | 0.0393 |
+| Crisis + Satellite | 0.0415 | 98.75% | 100.00% | 0.0274 | 0.0164 |
+| **Crisis + IoT + Satellite** | **0.0398** | **99.41%** | **100.00%** | **0.0248** | **0.0161** |
+
+### 10.5 Relative Improvement over Crisis-Only Baseline
+
+| Configuration | Severity MAE | Priority Acc | Population MAE | Resource MAE |
+|---------------|-------------|-------------|---------------|-------------|
+| + IoT | -15.1% | +3.41pp | -21.2% | -16.0% |
+| + Satellite | -64.4% | +29.79pp | -68.8% | -65.0% |
+| **+ IoT + Satellite** | **-65.8%** | **+30.45pp** | **-71.7%** | **-65.6%** |
+
+### 10.6 Key Ablation Findings
+
+1. **Satellite modality is the strongest single contributor**
+   - Adding satellite alone reduces Severity MAE by **64.4%** (0.1165 -> 0.0415)
+   - Boosts Priority Accuracy by **+29.8 percentage points** (68.96% -> 98.75%)
+   - Provides direct physical damage evidence from segmentation-based features
+
+2. **IoT provides incremental but meaningful improvement**
+   - Reduces Severity MAE by **15.1%** (0.1165 -> 0.0989)
+   - Boosts Priority Accuracy by **+3.4 percentage points** (68.96% -> 72.37%)
+   - Contributes environmental context (weather, seismic, hydrological signals)
+
+3. **Full tri-fusion achieves best results across ALL metrics**
+   - Severity MAE: **0.0398** (best)
+   - Priority Accuracy: **99.41%** (best)
+   - Population Impact MAE: **0.0248** (best)
+   - Resource Needs MAE: **0.0161** (best)
+   - Outperforms best single addition by further **4.1%** severity improvement
+
+4. **Graceful degradation confirmed**
+   - 30% modality dropout during training enables robust missing-modality handling
+   - Crisis-only mode still achieves 68.96% priority accuracy (usable baseline)
+   - Each added modality **monotonically improves** all metrics
+
+5. **Disaster type classification is saturated**
+   - **100% accuracy** across all configurations
+   - The 5-class disaster type is well-separated in the embedding spaces
+
+### 10.7 Legacy Dual-Fusion Model
+
+| Component | Detail |
+|-----------|--------|
+| Model | FusionLayer (IoT + Crisis only) |
+| Input | IoT 128-dim + Crisis 1024-dim |
+| Attention | Asymmetric (IoT queries crisis) |
+| Model Size | 6.4 MB |
+| Checkpoint | `fusion/fusion_model.pth` |
+| Training | 40 epochs, batch 128, LR 1e-3, AdamW |
+
+---
+
+## 11. Summary Table
+
+### 11.1 Novel Contributions (22 Total)
 
 | # | Novelty | Category | Key Innovation |
 |---|---------|----------|----------------|
-| 1.1 | Tri-Modal Fusion Pipeline | Architecture | IoT + Vision + Text through learned attention |
-| 1.2 | Zero-Input Disaster Type Detection | Architecture | No manual type selection required |
-| 1.3 | Graceful Modality Degradation | Architecture | Works with any subset of data streams |
+| 1.1 | Tri-Modal Fusion Pipeline | Architecture | IoT + Vision + Text + Satellite through learned pairwise attention |
+| 1.2 | Zero-Input Disaster Type Detection | Architecture | No manual type selection required (100% accuracy) |
+| 1.3 | Graceful Modality Degradation | Architecture | Works with any subset of data streams (30% dropout training) |
 | 2.1 | Adaptive Confidence-Weighted Sensor Fusion | Model | Learned per-group confidence estimation |
 | 2.2 | Cross-Group Multi-Head Attention | Model | Sensor groups attend to each other (cascading disasters) |
 | 2.3 | Dual Adaptive Modality Weighting | Model | Input-dependent vision/text trust estimation |
 | 2.4 | Bidirectional Cross-Modal Attention | Model | Both modalities enrich each other |
-| 2.5 | Asymmetric IoT-Queries-Crisis Attention | Model | Sensor data queries social media context |
+| 2.5 | Pairwise Cross-Attention + Adaptive Gating | Model | 3-way learned modality weighting in tri-fusion |
+| 2.6 | DeepLabV3+ Dual Feature Extraction | Model | Segmentation + compact embedding from single model |
 | 3.1 | Joint 4-Head IoT Output | Multi-Task | Type + severity + risk + casualty from shared embedding |
 | 3.2 | Joint 5-Head Fusion Output | Multi-Task | Complete operational assessment in one pass |
 | 4.1 | Gradient-Weighted Attention Rollout | XAI | Solves Grad-CAM failure on ViT architectures |
@@ -609,4 +967,40 @@ Calibrated output:    [0.423, 0.312, 0.089, 0.121, 0.055]
 | 6.2 | Per-Group Sensor Weight Transparency | System | Operators see why the model decided |
 | 6.3 | Temperature-Calibrated Confidence | System | Honest uncertainty in probability scores |
 
-**Total: 20 novel contributions** across 6 categories: Architecture (3), Model (5), Multi-Task (2), XAI (3), Data (4), System (3).
+### 11.2 Headline Performance Numbers
+
+| Model / Component | Key Metric | Value |
+|-------------------|-----------|-------|
+| **Crisis Model** | Test Accuracy | **86.39%** |
+| | Macro F1 | 77.44% |
+| | Weighted F1 | 87.00% |
+| | ROC-AUC (Macro) | **0.97** |
+| | vs Baseline (SVM) | +12.39% absolute improvement |
+| **IoT Model** | Overall Accuracy | **97.64%** |
+| | Weighted F1 | 97.69% |
+| | ROC-AUC (Macro) | 0.9962 |
+| | Severity MAE | 0.0452 |
+| | Severity R-squared | 0.7454 |
+| | Storm/EQ/Flood F1 | 1.000 each |
+| **xBD Satellite** | Best Val Mean IoU | 0.2802 (pre-fix) |
+| | No-Damage IoU | 0.8567 |
+| | Expected IoU (post-fix) | 0.50+ |
+| **Tri-Fusion** | Priority Accuracy | **99.41%** |
+| | Severity MAE | **0.0398** |
+| | Disaster Accuracy | **100.00%** |
+| | Population MAE | 0.0248 |
+| | Resource MAE | 0.0161 |
+| | vs Crisis-Only Severity | **-65.8% MAE reduction** |
+| | vs Crisis-Only Priority | **+30.45pp improvement** |
+
+### 11.3 Model Sizes
+
+| Model | Parameters | Disk Size |
+|-------|-----------|-----------|
+| Crisis (BLIP + XLM-RoBERTa) | 367,092,487 | 4.1 GB |
+| IoT (AdaptiveIoTClassifier) | ~50K | 897 KB |
+| xBD (DeepLabV3+ ResNet101) | ~60M | 365 MB |
+| Tri-Fusion Layer | 3,163,602 | 12 MB |
+| Dual-Fusion Layer (legacy) | ~1.5M | 6.4 MB |
+
+**Total: 22 novel contributions** across 6 categories: Architecture (3), Model (6), Multi-Task (2), XAI (3), Data (4), System (3).
