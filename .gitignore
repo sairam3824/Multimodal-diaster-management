@@ -76,6 +76,7 @@ Thumbs.db
 !fusion/tri_fusion_model.pth
 !fusion/fusion_model.pth
 crisis/Dataset/
+crisis/Dataset.zip
 
 # AI Tools and IDEs
 .agent/

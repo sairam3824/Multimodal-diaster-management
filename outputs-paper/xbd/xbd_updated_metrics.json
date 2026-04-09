@@ -1,0 +1,113 @@
+{
+    "training": {
+        "epochs_completed": 60,
+        "best_epoch": 14,
+        "best_val_iou": 0.4154918344477012,
+        "best_val_f1": 0.5084171081204713,
+        "best_val_loss": 0.29447752631762447,
+        "final_train_loss": 0.2685243961081576,
+        "final_val_loss": 0.30113309709464803,
+        "final_val_iou": 0.40955633039391465,
+        "final_val_f1": 0.5023404258955613,
+        "total_training_time_hours": 0.7509010985162523,
+        "avg_epoch_time_minutes": 0.7509010985162523
+    },
+    "model_architecture": {
+        "name": "DeepLabV3Plus_xBD",
+        "encoder": "ResNet101",
+        "pretrained": "ImageNet",
+        "total_parameters": 47724756,
+        "trainable_parameters": 47724756,
+        "model_size_mb": 190.899024
+    },
+    "output_features": {
+        "F_sat": {
+            "dimension": 512,
+            "description": "Satellite embedding for physical damage",
+            "shape": "[batch, 512]"
+        },
+        "P_x": {
+            "dimension": 4,
+            "description": "Damage probability maps (severity semantics)",
+            "shape": "[batch, 4, H, W]",
+            "classes": [
+                "no-damage",
+                "minor-damage",
+                "major-damage",
+                "destroyed"
+            ]
+        },
+        "F_region": {
+            "dimension": 128,
+            "description": "Regional statistics (spatial context)",
+            "shape": "[batch, 128]"
+        }
+    },
+    "dataset": {
+        "train_samples": 2147,
+        "val_samples": 537,
+        "total_samples": 2684,
+        "image_size": "512x512",
+        "batch_size": 4,
+        "disaster_types": [
+            "santa-rosa-wildfire",
+            "mexico-earthquake",
+            "hurricane-michael",
+            "hurricane-harvey",
+            "nepal-flooding",
+            "hurricane-matthew",
+            "hurricane-florence",
+            "woolsey-fire",
+            "socal-fire",
+            "midwest-flooding",
+            "palu-tsunami",
+            "guatemala-volcano"
+        ],
+        "num_disasters": 12
+    },
+    "class_performance": {
+        "No-Damage": {
+            "iou": 0.9704041481018066,
+            "f1": 0.9848934964222067
+        },
+        "Minor": {
+            "iou": 0.1540818574347427,
+            "f1": 0.2586820486959529
+        },
+        "Major": {
+            "iou": 0.2390158797497861,
+            "f1": 0.3604198936441475
+        },
+        "Destroyed": {
+            "iou": 0.2984654525044694,
+            "f1": 0.4296729937195778
+        }
+    },
+    "training_config": {
+        "optimizer": "AdamW",
+        "scheduler": "CosineAnnealingLR",
+        "loss_function": "CrossEntropyLoss (class-weighted)",
+        "class_weights": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "gradient_clipping": 1.0,
+        "data_augmentation": [
+            "HorizontalFlip",
+            "VerticalFlip",
+            "RandomRotate90",
+            "ShiftScaleRotate",
+            "BrightnessContrast",
+            "GaussianNoise"
+        ]
+    },
+    "saved_files": {
+        "best_model": "/kaggle/working/xbd_processed/checkpoints/best_model.pth",
+        "training_history_csv": "/kaggle/working/xbd_processed/training_history.csv",
+        "training_history_plot": "/kaggle/working/xbd_processed/training_history.png",
+        "predictions_visualization": "/kaggle/working/xbd_processed/predictions_visualization.png",
+        "config": "/kaggle/working/xbd_processed/training_summary.json"
+    }
+}
