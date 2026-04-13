@@ -1,16 +1,16 @@
 {
     "training": {
-        "epochs_completed": 60,
-        "best_epoch": 14,
-        "best_val_iou": 0.4154918344477012,
-        "best_val_f1": 0.5084171081204713,
-        "best_val_loss": 0.29447752631762447,
-        "final_train_loss": 0.2685243961081576,
-        "final_val_loss": 0.30113309709464803,
-        "final_val_iou": 0.40955633039391465,
-        "final_val_f1": 0.5023404258955613,
-        "total_training_time_hours": 0.7509010985162523,
-        "avg_epoch_time_minutes": 0.7509010985162523
+        "epochs_completed": 30,
+        "best_epoch": 27,
+        "best_val_iou": 0.42756739693570756,
+        "best_val_f1": 0.5221189397715909,
+        "best_val_loss": 0.28454093919957385,
+        "final_train_loss": 0.24023582146906142,
+        "final_val_loss": 0.2850695329115671,
+        "final_val_iou": 0.42650762335285897,
+        "final_val_f1": 0.5205673525753596,
+        "total_training_time_hours": 1.5047828095489078,
+        "avg_epoch_time_minutes": 3.0095656190978155
     },
     "model_architecture": {
         "name": "DeepLabV3Plus_xBD",
@@ -67,20 +67,20 @@
     },
     "class_performance": {
         "No-Damage": {
-            "iou": 0.9704041481018066,
-            "f1": 0.9848934964222067
+            "iou": 0.977397068458445,
+            "f1": 0.9885126404902514
         },
         "Minor": {
-            "iou": 0.1540818574347427,
-            "f1": 0.2586820486959529
+            "iou": 0.15950414661646767,
+            "f1": 0.2662203162908554
         },
         "Major": {
-            "iou": 0.2390158797497861,
-            "f1": 0.3604198936441475
+            "iou": 0.2646920815219774,
+            "f1": 0.3935808747020714
         },
         "Destroyed": {
-            "iou": 0.2984654525044694,
-            "f1": 0.4296729937195778
+            "iou": 0.3086762911459403,
+            "f1": 0.4401619276031852
         }
     },
     "training_config": {
