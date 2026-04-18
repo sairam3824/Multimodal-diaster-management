@@ -1,0 +1,33 @@
+{
+  "title": "Multimodal Disaster Intelligence Platform for Real-Time Disaster Assessment Using Environmental Metadata, Social Media, and Satellite Imagery",
+  "short_title": "Multimodal Disaster Intelligence Platform",
+  "degree": "Bachelor of Technology",
+  "programme": "Computer Science and Engineering",
+  "school": "School of Computer Science and Engineering",
+  "institution": "VIT-AP University",
+  "campus": "Amaravati, Andhra Pradesh",
+  "submission_month_year": "April 2026",
+  "place": "Amaravati",
+  "guide_name": "[Guide Name]",
+  "guide_designation": "[Guide Designation]",
+  "dean_name": "[Dean Name]",
+  "program_chair_name": "[Program Chair Name]",
+  "candidates": [
+    {
+      "name": "[Student Name 1]",
+      "registration_number": "[Registration Number 1]"
+    },
+    {
+      "name": "[Student Name 2]",
+      "registration_number": "[Registration Number 2]"
+    },
+    {
+      "name": "[Student Name 3]",
+      "registration_number": "[Registration Number 3]"
+    },
+    {
+      "name": "[Student Name 4]",
+      "registration_number": "[Registration Number 4]"
+    }
+  ]
+}
