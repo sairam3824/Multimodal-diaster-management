@@ -26,31 +26,37 @@
 
 ### What This System Does
 
-This platform provides **real-time disaster assessment** by fusing two independent data streams:
+This platform provides **tri-modal disaster assessment** by fusing three independent data streams:
 
-- **IoT Sensors** (weather stations, seismographs, flood gauges, storm trackers)
-- **Social Media** (images and text from disaster-affected areas)
+- **Environmental sensor metadata** (weather, storm-track, seismic, and hydrological features)
+- **Social media** (images and text from disaster-affected areas)
+- **Satellite imagery** (damage assessment features extracted from xBD-style post-disaster imagery)
 
 It automatically detects the disaster type, estimates severity, predicts resource needs, and generates actionable briefings for first responders. No manual disaster-type input is needed; the system infers everything from raw data.
 
+The repository retains the historical `IoT` naming used during development (`IOT/`, `AdaptiveIoTClassifier`), but the current model is trained on archival environmental and seismological datasets plus a synthetic flood-risk dataset rather than on a live sensor network. The architecture is sensor-agnostic and can be adapted to operational feeds, but the published results should be read in that scope.
+
 ### Why This Approach
 
-Traditional disaster response systems rely on a single data source. IoT sensors provide precise physical measurements but lack context about human impact. Social media provides real-time on-the-ground reports but is noisy and unstructured. This platform fuses both streams through a learned cross-modal attention mechanism, producing assessments that neither source could achieve alone.
+Traditional disaster response systems often rely on a single data source. Environmental metadata provides physical hazard evidence but limited human context. Social media offers real-time on-the-ground reports but is noisy and unstructured. Satellite imagery gives broad spatial evidence of structural damage but lacks immediate field-level semantics. This platform fuses all three streams through learned pairwise cross-attention and adaptive gating, producing assessments that no single modality can provide alone.
 
 ### The Five-Layer Pipeline
 
 ```
-Layer 1: IoT Sensor Analysis
+Layer 1: Environmental Sensor Analysis ("IoT" path in code)
     32-dim sensor vector -> AdaptiveIoTClassifier -> disaster type + severity + risk scores
                                                       |
                                                       | 128-dim embedding
                                                       v
-Layer 3: Cross-Modal Fusion --------> FusionLayer (cross-modal attention)
-                                                      ^
-                                                      | 1024-dim embedding
-                                                      |
-Layer 2: Crisis Social Media Analysis
-    Image + Tweet -> BLIP ViT + XLM-RoBERTa -> AdaptiveFusionClassifier -> humanitarian category
+Layer 3: Tri-Modal Fusion ----------> TriFusionLayer (pairwise cross-attention + gating)
+                                                      ^                      ^
+                                                      |                      |
+                                                      | 1024-dim embedding   | 640-dim embedding
+                                                      |                      |
+Layer 2: Crisis Social Media         Layer 2b: Satellite Damage Assessment
+    Image + Tweet ->                     Post-disaster image ->
+    BLIP ViT + XLM-RoBERTa ->           DeepLabV3+ ->
+    AdaptiveFusionClassifier            F_sat (512) + F_region (128)
                                                       |
                                                       v
 Layer 4: Explainability
@@ -72,50 +78,51 @@ Layer 5: Alert and Resource Recommendation
                     |   User Input     |
                     | Image + Tweet +  |
                     | Sensor Readings  |
+                    | + Satellite Img  |
                     +--------+---------+
-                             |
-               +-------------+-------------+
-               |                           |
-               v                           v
-    +----------+---------+     +-----------+----------+
-    | IoT Sensor Module  |     | Crisis Media Module  |
-    | AdaptiveIoT        |     | AdaptiveFusion       |
-    | Classifier         |     | Classifier           |
-    |                    |     |                      |
-    | Input: 32 floats   |     | Input: 224x224 img   |
-    | Output: 128-dim    |     |      + 128 tokens    |
-    |   embedding        |     | Output: 1024-dim     |
-    +----------+---------+     |   embedding          |
-               |               +-----------+----------+
-               |                           |
-               +-------------+-------------+
-                             |
+              +--------------+------------------+--------------+
+              |                                 |              |
+              v                                 v              v
+    +---------+----------+          +-----------+----------+  +-----------+----------+
+    | Env. Metadata      |          | Crisis Media Module  |  | Satellite Damage     |
+    | Module             |          | AdaptiveFusion       |  | Module               |
+    | AdaptiveIoT        |          | Classifier           |  | DeepLabV3+           |
+    | Classifier         |          |                      |  |                      |
+    | Input: 32 floats   |          | Input: 224x224 img   |  | Input: 512x512 post  |
+    | Output: 128-dim    |          | + tokenized text     |  | image                |
+    | embedding          |          | Output: 1024-dim     |  | Output: 640-dim      |
+    +---------+----------+          | embedding            |  | embedding            |
+              |                     +-----------+----------+  +-----------+----------+
+              |                                 |                         |
+              +-------------------+-------------+-------------------------+
+                                  |
                              v
                   +----------+---------+
-                  |   Fusion Layer     |
-                  | Cross-Modal        |
-                  | Attention          |
+                  |   TriFusionLayer   |
+                  | Pairwise Cross-    |
+                  | Attention + Gate   |
                   |                    |
-                  | IoT queries Crisis |
-                  | context via Q/K/V  |
+                  | Crisis/Env/Sat     |
+                  | pair interactions  |
                   +----------+---------+
                              |
                +-------------+-------------+
-               |             |             |
-               v             v             v
-         +---------+   +---------+   +---------+
-         |Severity |   |Priority |   |Resource |
-         | Head    |   | Head    |   | Head    |
-         +---------+   +---------+   +---------+
+               |             |             |             |
+               v             v             v             v
+         +---------+   +---------+   +---------+   +---------+
+         |Severity |   |Priority |   |Disaster |   |Resource |
+         | Head    |   | Head    |   | Head    |   | Heads   |
+         +---------+   +---------+   +---------+   +---------+
 ```
 
 ### Model Checkpoints
 
 | Model | File | Size | What It Contains |
 |-------|------|------|-----------------|
-| IoT Classifier | `IOT/models/iot_model.pth` | ~180 KB | AdaptiveIoTClassifier state_dict + config + val metrics |
+| Environmental Metadata Classifier | `IOT/models/iot_model.pth` | ~180 KB | AdaptiveIoTClassifier state_dict + config + validation metrics |
 | Crisis Classifier | `crisis/best_adaptive_model.pth` | ~450 MB | AdaptiveFusionClassifier state_dict (includes frozen BLIP + XLM-RoBERTa weights) |
-| Fusion Layer | `fusion/fusion_model.pth` | ~2 MB | FusionLayer state_dict |
+| Dual Fusion Layer | `fusion/fusion_model.pth` | ~2 MB | Legacy IoT + Crisis fusion checkpoint |
+| Tri-Fusion Layer | `fusion/tri_fusion_model.pth` | ~3 MB | TriFusionLayer state_dict for crisis + environmental metadata + satellite fusion |
 
 ### Technology Stack
 

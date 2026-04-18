@@ -1,12 +1,14 @@
 # Multimodal Disaster Intelligence Platform
 
-A real-time disaster assessment system that fuses **IoT sensor data**, **social media (image + text)**, and **satellite imagery** through a learned tri-modal cross-attention mechanism. The system automatically detects disaster type, estimates severity, predicts resource needs, and generates explainable briefings for first responders -- no manual disaster-type input required.
+A tri-modal disaster assessment platform that fuses **environmental sensor metadata**, **social media (image + text)**, and **satellite imagery** through a learned cross-attention mechanism. The system automatically detects disaster type, estimates severity, predicts resource needs, and generates explainable briefings for first responders with no manual hazard selection.
+
+The repository keeps the historical `IoT` naming used in the code (`AdaptiveIoTClassifier`, `IOT/`), but the current implementation is trained on archival weather, seismic, storm-track, and flood-risk datasets rather than live MQTT or LoRaWAN sensor feeds. The architecture is compatible with real sensor deployments, but the reported metrics should be interpreted in that scope.
 
 ![System Architecture](architecture.png)
 
 ## Key Features
 
-- **Tri-Modal Fusion**: Combines IoT sensors, crisis social media, and satellite imagery via pairwise cross-attention with learned gating
+- **Tri-Modal Fusion**: Combines environmental sensor metadata, crisis social media, and satellite imagery via pairwise cross-attention with learned gating
 - **Zero-Input Disaster Detection**: Automatically infers disaster type (fire, storm, earthquake, flood) from raw signals
 - **Graceful Modality Degradation**: Operates with any subset of data streams without retraining -- 30% modality dropout during training enables robust missing-modality handling
 - **Explainability (XAI)**: Gradient-weighted attention rollout (Grad-CAM) + GPT-4o natural language briefings
@@ -15,7 +17,7 @@ A real-time disaster assessment system that fuses **IoT sensor data**, **social 
 ## Architecture Overview
 
 ```
-Layer 1: IoT Sensor Analysis
+Layer 1: Environmental Sensor Analysis ("IoT" path in code)
     32-dim sensor vector -> AdaptiveIoTClassifier -> disaster type + severity + risk scores
                                                       |
                                                       | 128-dim embedding
@@ -41,17 +43,17 @@ Layer 5: Alert Level + Resource Recommendation
 
 | Configuration | Priority Acc | Severity MAE | Disaster Type Acc |
 |---|---|---|---|
-| Full Tri-Fusion (IoT + Crisis + Satellite) | **99.41%** | **0.0398** | **100%** |
+| Full Tri-Fusion (Env. Metadata + Crisis + Satellite) | **99.41%** | **0.0398** | **100%** |
 | Crisis + Satellite | 98.75% | 0.0482 | 100% |
-| Crisis + IoT | 72.37% | 0.1124 | 100% |
+| Crisis + Env. Metadata | 72.37% | 0.1124 | 100% |
 | Crisis Only (baseline) | 68.96% | 0.1165 | 100% |
 
 ### Individual Model Metrics
 
 | Model | Key Metric | Value |
 |---|---|---|
-| IoT Classifier | Accuracy / Macro F1 | 97.6% / 90.0% |
-| IoT Classifier | ROC AUC (macro) | 99.6% |
+| Environmental Metadata Classifier (`AdaptiveIoTClassifier`) | Accuracy / Macro F1 | 97.6% / 90.0% |
+| Environmental Metadata Classifier (`AdaptiveIoTClassifier`) | ROC AUC (macro) | 99.6% |
 | Crisis Classifier | See `outputs-paper/crisis/` | -- |
 | xBD Satellite (DeepLabV3+) | Val IoU / Val F1 | 42.8% / 52.2% |
 
@@ -59,10 +61,10 @@ Layer 5: Alert Level + Resource Recommendation
 
 ```
 .
-├── IOT/                        # IoT sensor classifier
+├── IOT/                        # Environmental sensor metadata classifier ("IoT" naming kept in code)
 │   ├── train_iot.py            # Training script
 │   ├── evaluate_iot.py         # Evaluation script
-│   ├── datasets/               # IoT datasets (fire, storm, earthquake, flood)
+│   ├── datasets/               # Environmental/seismological datasets (fire, storm, earthquake, flood)
 │   └── models/                 # Saved model weights
 ├── crisis/                     # Crisis social media classifier
 │   ├── train_crisis_code.ipynb # Training notebook
@@ -120,7 +122,7 @@ The FastAPI server starts at `http://localhost:8000` with a web dashboard for in
 The unified server accepts multimodal inputs and returns fused disaster assessments:
 
 ```bash
-# Full analysis with image + text + IoT sensors
+# Full analysis with image + text + environmental sensor inputs
 curl -X POST http://localhost:8000/analyze \
   -F "image=@disaster_photo.jpg" \
   -F "tweet=Massive flooding in downtown area" \
@@ -147,7 +149,7 @@ python fusion/train_tri_fusion.py
 
 | Dataset | Source | Samples | Used For |
 |---|---|---|---|
-| CA Wildfire, Tropical Storms, Global Earthquakes, Sri Lanka Floods | Public repositories | 63,527 | IoT classifier |
+| CA Wildfire, Tropical Storms, Global Earthquakes, Sri Lanka Floods | Public repositories | 63,527 | Environmental metadata classifier |
 | CrisisMMD | [CrisisMMD](https://crisisnlp.qcri.org/) | -- | Crisis social media classifier |
 | xBD | [xView2](https://xview2.org/) | 2,684 images | Satellite damage assessment |
 
@@ -162,6 +164,7 @@ python fusion/train_tri_fusion.py
 
 - [`DOCUMENTATION.md`](DOCUMENTATION.md) -- Complete technical documentation covering all five layers, data flow, and training procedures
 - [`NOVEL_CONTRIBUTIONS.md`](NOVEL_CONTRIBUTIONS.md) -- Detailed novel contributions with architecture diagrams and ablation study results
+- [`thesis/README.md`](thesis/README.md) -- How to update thesis metadata and regenerate the submission `.docx`
 
 ## License
 

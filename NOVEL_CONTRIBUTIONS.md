@@ -22,16 +22,16 @@
 
 ## 1. Architecture-Level Novelties
 
-### 1.1 Tri-Modal Fusion Pipeline (IoT + Vision + Text)
+### 1.1 Tri-Modal Fusion Pipeline (Environmental Metadata + Vision + Text)
 
-**What**: A unified end-to-end pipeline that fuses three independent data modalities — IoT sensor readings, satellite/social media images, and tweet/report text — through a learned cross-modal attention mechanism.
+**What**: A unified end-to-end pipeline that fuses three independent data modalities — environmental sensor metadata, satellite damage imagery, and social media image-text reports — through learned pairwise cross-attention and adaptive gating.
 
-**Why it is novel**: Most existing disaster management systems rely on a single data source. Sensor-based systems detect physical events but miss human impact. Social media systems capture on-the-ground reports but lack precise measurements. This project combines both streams through a neural attention mechanism that learns which signals from each modality to trust.
+**Why it is novel**: Most existing disaster management systems rely on a single data source. Environmental metadata captures physical hazard signatures but misses human impact. Social media captures on-the-ground context but lacks calibrated physical measurements. Satellite imagery captures structural damage at scale but has weaker field-level semantics. This project combines all three streams through a neural attention mechanism that learns which signals from each modality to trust.
 
 **How it works**:
 
 ```
-IoT Sensors (32 features)
+Environmental Metadata (32 features)
     |
     v
 AdaptiveIoTClassifier --> 128-dim embedding --+
@@ -50,18 +50,20 @@ AdaptiveFusionClassifier --> 1024-dim embedding+  DeepLabV3Plus_xBD --+
 Output: Severity + Priority + Disaster Type + Population Impact + Resource Needs
 ```
 
+**Scope note**: The codebase retains the historical `IoT` naming, but the current implementation is trained on archival environmental and seismological datasets plus a synthetic flood-risk dataset rather than live IoT packets.
+
 **Impact**: The full tri-fusion achieves **99.41% priority accuracy** and **0.0398 severity MAE** — a **65.8% improvement** over crisis-only baseline (see Section 10).
 
 ---
 
 ### 1.2 Zero-Input Disaster Type Detection
 
-**What**: The system never asks the user "what type of disaster is this?" Both the IoT model and crisis model independently infer the disaster type from raw data.
+**What**: The system never asks the user "what type of disaster is this?" Both the environmental metadata sub-model (`AdaptiveIoTClassifier` in code) and the crisis model independently infer the disaster type from raw data.
 
 **Why it is novel**: Most multi-hazard systems require the operator to select a disaster type before analysis begins. This creates a critical delay in the first minutes of an event when the type may be unclear (is it an earthquake or an explosion? a flood or a dam break?). Our system auto-detects from raw signals.
 
 **How it works**:
-- **IoT path**: The AdaptiveIoTClassifier's disaster_head outputs probabilities over 5 types (fire, storm, earthquake, flood, unknown) directly from the 32-dim sensor vector
+- **Environmental metadata path**: The AdaptiveIoTClassifier's disaster_head outputs probabilities over 5 types (fire, storm, earthquake, flood, unknown) directly from the 32-dim sensor vector
 - **Crisis path**: The AdaptiveFusionClassifier categorizes the humanitarian impact, while BLIP captioning and keyword scoring infer the physical hazard type
 - **Fusion path**: The TriFusionLayer's disaster_head reconciles both predictions
 
@@ -77,9 +79,9 @@ Output: Severity + Priority + Disaster Type + Population Impact + Resource Needs
 
 | Mode | Available Data | What Runs | Priority Acc |
 |------|---------------|-----------|-------------|
-| Full Tri-Fusion | IoT + Image + Text + Satellite | All models + TriFusionLayer | **99.41%** |
+| Full Tri-Fusion | Env. metadata + Image + Text + Satellite | All models + TriFusionLayer | **99.41%** |
 | Crisis + Satellite | Image + Text + Satellite | Crisis + xBD + TriFusion | 98.75% |
-| Crisis + IoT | Image + Text + IoT sensors | Crisis + IoT + TriFusion | 72.37% |
+| Crisis + Env. Metadata | Image + Text + environmental metadata | Crisis + AdaptiveIoT + TriFusion | 72.37% |
 | Crisis Only | Image + Text (no sensors) | Crisis model + BLIP captioning | 68.96% |
 
 **How it works**:
