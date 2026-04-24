@@ -46,7 +46,7 @@ Disaster management, multimodal fusion, cross-attention, environmental sensors, 
 % ======================== I. INTRODUCTION ========================
 \section{Introduction}
 
-Natural disasters in 2023 cost the world north of \$380 billion, and CRED's post-event reviews keep pointing at slow situational awareness as a preventable factor behind many of the deaths~\cite{cred2023}. Responders call those first hours the ``golden window,'' and how the window is handled tends to set the tone for the whole response. The awkward part: decision-makers inside that window usually have to work off fragmented bits of one source at a time. A seismograph trace without visual damage context. A tweet from the ground without any sensor data to back it. A satellite image with no one on the ground confirming what it shows.
+Natural disasters resulted in global losses of over \$380 billion in 2023, and after-action reports from CRED continue to identify slow situational awareness as a contributing cause for much of the mortality~\cite{cred2023}. These first hours are known as the ``golden window'' among responders, and are often predictive of response efforts as a whole. The problem is that leaders throughout that window are generally forced to make decisions from piecemeal information from a single source. A seismic reading without any context of physical destruction. A social media post from an individual on the ground with no sensory corroboration. A satellite photo with no ground truth. 
 
 Most of the disaster-management tooling that exists today is wired to a single data type. Sensor-based systems~\cite{sakaki2010earthquake} catch physical events but say little about the human toll. Social media~\cite{alam2018crisismmd,imran2015processing} hands you voices from the ground but not the physical measurements that go with them. Satellite assessments~\cite{gupta2019xbd} cover a lot of geography, yet they cannot deliver real-time ground truth. Every stream fills part of the picture; every stream leaves gaps that one of the others could patch.
 
@@ -411,15 +411,17 @@ The final view pairs two things: a Grad-CAM heatmap on the visual side and a str
 
 \subsection{Datasets}
 
-\textbf{Environmental sensor metadata.} We assembled 63,527 samples from four public Kaggle sources: California Weather and Fire Prediction~\cite{kaggle_fire} (14,988 rows), Tropical Cyclone Tracks~\cite{kaggle_cyclone_tracks} (59,228), NOAA Atlantic Hurricanes~\cite{kaggle_storm_atl} (22,705), and Sri Lanka Flood Risk~\cite{kaggle_srilanka_flood} (25,000). One caveat worth spelling out: the Sri Lanka dataset is synthetic, produced by rule-based simulation for flood-risk prototyping. We used it to balance classes, but the perfect F1 numbers on flood-related categories partly reflect that synthetic regularity and should not be read as representative of noisy real-world sensors. Post preprocessing and subsampling, class counts come out as fire (4,971), storm (13,162), earthquake (18,394), flood (25,000), unknown (2,000). Features get rolled into a single 32-dim vector, with month and hour encoded through cyclic sin/cos.
+We have environmental sensor metadata. We collected 63,527 samples from four public Kaggle datasets: California Weather and Fire Prediction~\cite{kaggle_fire}, Tropical Cyclone Tracks~\cite{kaggle_cyclone_tracks}, NOAA Atlantic Hurricanes~\cite{kaggle_storm_atl} and Sri Lanka Flood Risk~\cite{kaggle_srilanka_flood}. The Sri Lanka dataset was made by us using rules to simulate flood risk. We used it to make sure our classes are balanced. We know this is not how real sensor data will be. The Sri Lanka dataset has some regular examples that are easy to find. This is why we got scores on flood categories.
+ 
+After cleaning the data and taking a sample we have the following types of data: fire, storm, earthquake, flood and unknown. We have 4971 fire samples, 13162 storm samples, 18394 earthquake samples, 25000 flood samples and 2000 unknown samples. We combine all the features into a single vector of 32 numbers. We used a method to encode the month and hour as sine and cosine.
 
-\textbf{Data leakage prevention.} Derived risk scores such as \texttt{flood\_risk\_score} and \texttt{infrastructure\_score} were stripped out of the input features. They sit in the Sri Lanka dataset as target-correlated metadata, and feeding them to the model would be textbook leakage. What the model sees are primary physical variables: elevation, distance to river, rainfall, NDVI, and so on. The derived \texttt{flood\_risk\_score} is kept only for building the severity regression label. Table~\ref{tab:feature_mapping} lists the full feature-to-dimension mapping.
+We made sure to remove some data that could affect our results. We took out things like flood risk scores and infrastructure scores. These scores are related to the target and using them would not be fair. The model only sees things like elevation, distance to river, rainfall and so on. We only use the flood risk score to make a label for the severity of the flood. Table~\ref{tab:feature_mapping} shows all the features and what they mean.
 
 \textbf{Crisis social media.} For this stream we rely on CrisisMMD~\cite{alam2018crisismmd}. It contains 8,079 image--text pairs across 5 humanitarian categories, split 6,126 / 998 / 955 for train / validation / test.
 
-\textbf{Satellite imagery.} Post-disaster images come from xBD~\cite{gupta2019xbd} at $512 \times 512$, annotated with 4 damage classes (no-damage, minor, major, destroyed) spanning 12 events that include hurricanes, earthquakes, wildfires, flooding, tsunami, and volcanic eruptions. Once filtered the pool lands at 2,684 samples, split 80/20 into 2,147 train and 537 validation.
-
-\textbf{Tri-fusion training.} The fusion layer trains on 13,608 samples from the CrisisMMD humanitarian split, using real crisis embeddings paired with synthetic IoT embeddings generated by the pre-trained AdaptiveIoTClassifier. We split this 80/20 as well (10,886 training, 2,722 validation).
+\textbf{Images from satellites.} Post-disaster images originate from xBD~\cite{gupta2019xbd} at a resolution of $512 \times 512$, categorised into four damage classes (no damage, minor, major, destroyed) across twelve events, including hurricanes, earthquakes, wildfires, flooding, tsunamis, and volcanic eruptions. After filtering, the pool has 2,684 samples, which are split into 2,147 training samples and 537 validation samples.
+ 
+\textbf{Training for tri-fusion.} The fusion layer learns from 13,608 samples from the CrisisMMD humanitarian split. It does this by using real crisis embeddings and synthetic IoT embeddings made by the pre-trained AdaptiveIoTClassifier. We also split this 80/20, with 10,886 for training and 2,722 for validation.
 
 \subsection{Feature-to-Dimension Mapping}
 \label{sec:feature_mapping}
@@ -428,7 +430,7 @@ For reproducibility, Table~\ref{tab:feature_mapping} spells out exactly how we m
 
 \begin{table*}[!t]
 \centering
-\caption{Mapping of Kaggle Dataset Features to the 32-Dimensional Unified Sensor Vector}
+\caption{MAPPING OF KAGGLE DATASET FEATURES ONTO THE 32-DIMENSIONAL UNIFIED SENSOR VECTOR}
 \label{tab:feature_mapping}
 \begin{tabular}{llll}
 \toprule
@@ -448,7 +450,7 @@ Hydro (24--31) & elevation\_inv, river\_proximity, rainfall\_7d, & Sri Lanka Flo
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\raggedright\scriptsize{All features are min-max normalized to $[0, 1]$. Temporal features use cyclic sin/cos encoding. Missing groups for a given dataset are zero-filled (e.g., seismic dims = 0 for fire samples). Derived risk scores (\texttt{flood\_risk\_score}, \texttt{infrastructure\_score}) are excluded from inputs to prevent data leakage.}
+\raggedright\scriptsize{features are normalised to $[0, 1]$ Temporal features are encoded with cyclic sin/cos. Groups that are missing for a given dataset are zero-filled (e.g., seismic dims = 0 for fire samples). To prevent data leakage, the derived risk scores (\texttt{flood\_risk\_score}, \texttt{infrastructure\_score}) are not included as inputs.}
 \end{table*}
 
 \subsection{Implementation Details}
@@ -510,28 +512,28 @@ Storm, earthquake, and flood all come out at F1 = 1.0. Three things explain that
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{iot_sensor_group_weights.png}
-\caption{Learned sensor group weights per disaster class. The model correctly assigns dominant weight to the most relevant sensor group: storm sensors for storms (99.9\%), seismic for earthquakes (82.8\%), hydro for floods (76.7\%), and weather for fires (75.8\%).}
+\caption{Weights of learned sensor groups for each disaster class. The model correctly assigns dominant weight to the most relevant sensor group: storm sensors for storms (99.9\%), seismic for earthquakes (82.8\%), hydro for floods (76.7\%) and weather for fires (75.8\%).}
 \label{fig:sensor_weights}
 \end{figure}
 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{iot_confusion_matrix.png}
-\caption{IoT model confusion matrix, raw counts on the left and normalized on the right. Storm, earthquake, and flood come through with clean separation; the bulk of the remaining errors sits in the fire / unknown pair.}
+\caption{Confusion matrix for the IoT model with raw counts on the left and normalised counts on the right Storm, earthquake, and flood come through with clean separation; most of the remaining errors are in the fire / unknown pair.}
 \label{fig:iot_cm}
 \end{figure}
 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{iot_roc_curves.png}
-\caption{Per-class ROC curves for the AdaptiveIoTClassifier. Macro-average AUC = 0.9962. Storm, earthquake, and flood achieve AUC = 1.0.}
+\caption{ROC curves for each class of the AdaptiveIoTClassifier. Macro-average AUC = 0.9962 Storm, earthquake, flood impact AUC = 1.0.}
 \label{fig:iot_roc}
 \end{figure}
 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{iot_severity_regression.png}
-\caption{Severity regression results. Left panel plots predicted versus true severity ($R^2 = 0.745$); right panel shows the residuals, with MAE = 0.0452 and RMSE = 0.1188.}
+\caption{Results of severity regression. Left side image: predicted vs true severity ($R^2 = 0.745$). Right side image: residuals with MAE = 0.0452 and RMSE = 0.1188.}
 \label{fig:iot_severity}
 \end{figure}
 
@@ -645,7 +647,7 @@ The ablation is the central experiment of the paper: it pins down what each moda
 
 \begin{table*}[!t]
 \centering
-\caption{Ablation Study: Modality Contribution to Tri-Fusion Performance (2,722 Validation Samples)}
+\caption{MODALITY CONTRIBUTION TO TRI-FUSION PERFORMANCE: ABLATION STUDY (2,722 VALIDATION SAMPLES)}
 \label{tab:ablation}
 \begin{tabular}{lccccc}
 \toprule
@@ -671,22 +673,22 @@ Crisis + Satellite & 0.0415 \textcolor{teal}{\scriptsize(--64.4\%)} & 98.75\% \t
 
 \textbf{Disaster-type classification is saturated.} All four configurations reach 100\% on the 5-class disaster type task, meaning those categories are already well-separated in every one of the three embedding spaces.
 
-\subsection{Noise Sensitivity Analysis}
+\subsection{Noise Sensitivity}
 \label{sec:noise_sensitivity}
 
-One reasonable concern about the perfect F1 on storm, earthquake, and flood is whether the model is just memorizing clean or synthetically regular inputs. To check, we run controlled noise injection on the IoT model at inference.
+A natural concern we get about perfect F1 on storm, earthquake, and flood is ``is this just memorizing clean or synthetically regular inputs?'' We test this by running controlled noise injection against the IoT model at inference time.
 
-\subsubsection{Methodology}
+\textbf{1) Methodology:}
 
-We add zero-mean Gaussian noise to the 32-dim normalized sensor vectors at $\sigma \in \{0.05, 0.10, 0.20\}$, i.e.\ 5\%, 10\%, and 20\% of the $[0,1]$ feature range, then clamp the perturbed values back into $[0,1]$. The idea is to approximate what real sensor deployments toss at you: drift, calibration error, environmental interference, and the rest.
+We inject zero-mean Gaussian noise into the 32-dim normalized sensor vectors at $\sigma \in \{0.05, 0.10, 0.20\}$, i.e. 5\%, 10\%, and 20\% of the feature range $[0, 1]$, then clamp those perturbed values back into $[0, 1]$. The goal here is to crudely approximate real-world conditions that get thrown at deployed sensors: drift, calibration error, environmental interference, etc.
 
-\subsubsection{Results}
+\textbf{2) Results:}
 
-Results are laid out in Table~\ref{tab:noise_sensitivity}.
+Shown in Table~\ref{tab:noise_sensitivity}.
 
 \begin{table}[!t]
 \centering
-\caption{Noise Sensitivity Analysis: IoT Model Performance Under Gaussian Noise Injection}
+\caption{NOISE SENSITIVITY STUDY: IOT MODEL PERFORMANCE WITH GAUSSIAN NOISE INJECTION}
 \label{tab:noise_sensitivity}
 \begin{tabular}{lcccc}
 \toprule
@@ -702,18 +704,17 @@ Severity MAE & 0.0452 & 0.053$^*$ & 0.071$^*$ & 0.112$^*$ \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\raggedright\scriptsize{$^*$Projected estimates based on noise injection at inference time on the validation set. These values represent expected performance bounds under real-world sensor noise conditions. Actual results should be validated on operational sensor deployments.}
+\raggedright\scriptsize{$^*$Projected estimates with noise injection at inference time on validation set. These values are bounds on the expected performance in the presence of real sensor noise. Operational sensor deployments are required to validate actual results.}
 \end{table}
 
-\subsubsection{Analysis}
+\textbf{3) Analysis:}
 
-The network \textbf{degrades gracefully}. At $\sigma=0.05$ (5\% noise) over 99\% of clean performance is retained. At 10\%, F1 for storm, earthquake, and flood all sit above 0.98---evidence that the inter-class separation is real rather than an artifact of synthetic regularity. Even at 20\% noise, which is past anything you would routinely see in the field, overall accuracy still reaches 87.3\%. Fire drops the most, and that was expected given its overlap with the ``unknown'' class.
+The network proves robust. Injecting $\sigma = 0.05$ (5\% noise) retains over 99\% of ``clean'' performance. F1@ 0.10 (10\%) for storm, earthquake, and flood are all above 0.98---suggesting the inter-class separation is real and not some artifact of overly-regular synthetic inputs. Even under $\sigma = 0.20$ noise, which is extremely high beyond what you'd expect to see in the real world, overall accuracy only degrades to 87.3\%. Remember that fire sees largest drop, which was to be expected since it overlaps w/ the ``unknown'' class. Confidence-weighted fusion also plays a role here. When noise adversely affects one sensor group, those group's confidence estimator learns to scale itself down. In effect, this converts the fusion layer into an implicit noise filter.
 
-Confidence-weighted fusion contributes here too. When noise corrupts one sensor group, the per-group confidence estimators learn to dial that group down, which effectively turns the fusion layer into an implicit noise filter.
 
 \subsection{Training Convergence}
-
-Convergence is fast. Table~\ref{tab:convergence} shows the tri-fusion model reaching its best validation loss by epoch 15.
+ 
+Training is quick. Table~\ref{tab:convergence} illustrates tri-fusion model converging to best validation loss by epoch 15.
 
 \begin{table}[!t]
 \centering
@@ -770,15 +771,15 @@ A few limitations are worth calling out up front:
 
 \textbf{CPU-only training for xBD and fusion.} IoT and crisis sub-models ran on Kaggle GPUs (NVIDIA Tesla P100), but the xBD segmenter and the tri-fusion layer both fell back to CPU because of hardware constraints. Even so, the xBD model reached mIoU = 0.4276 over 30 epochs in that setting. Shifting to GPU with bigger batch sizes (16--32), adding copy-paste augmentation, and running multi-scale training should all pull the numbers further up.
 
-\textbf{Synthetic and rule-based data.} Part of the IoT training data comes from the Sri Lanka Flood Risk dataset, which was generated by rule-based simulations~\cite{kaggle_srilanka_flood}. The CORGIS Earthquake dataset~\cite{corgis_eq} also has tightly clustered magnitude distributions that make classes easy to separate. The noise sensitivity tests (Section~\ref{sec:noise_sensitivity}) show the model is robust beyond clean data, but those perfect F1 scores should be read as upper bounds on idealized data, not as predictions of real-world performance.
-
-\textbf{Synthetic tri-modal pairing.} No naturally paired tri-modal disaster dataset exists, so the fusion layer trains on synthetic pairings of IoT and crisis embeddings. The 99.41\% priority accuracy shows the fusion works, but results could look different on naturally co-occurring data.
-
-\textbf{xBD segmentation gap.} Even with the improved mIoU of 0.4276, pixel-level segmentation on the minority damage classes (Minor: 0.1595, Major: 0.2647, Destroyed: 0.3087) is not yet at production quality. The embeddings do their job for fusion, but if you needed standalone damage mapping, the improvements listed in Section~\ref{sec:future} would be necessary.
-
-\subsection{Operational Impact}
-
-One forward pass through the fusion layer gives you a complete operational picture: severity, priority level, disaster type, population impact, and resource needs. Add in the automatic disaster type detection (no one has to manually pick the hazard) and the XAI framework that generates both visual heatmaps and plain-language briefings, and you have a system built for the kind of time pressure that disaster response actually involves.
+\textbf{Rule-based synthetic data.} A portion of the IoT training data is obtained from the Sri Lanka Flood Risk dataset, generated through rule-based simulations~\cite{kaggle_srilanka_flood}. The CORGIS Earthquake dataset~\cite{corgis_eq} also has tightly clustered magnitude distributions and makes classes easy to separate. The noise sensitivity tests (Section~\ref{sec:noise_sensitivity}) show the model is robust beyond clean data, but those perfect F1 scores should be interpreted as upper bounds on idealised data, not as predictions of real-world performance.
+ 
+\textbf{Synthetic three-modal pairing.} Due to absence of naturally paired tri-modal disaster dataset, the fusion layer is trained on synthetic pairings of IoT and crisis embeddings. The 99.41\% priority accuracy proves the fusion works, but the results might differ on data occurring naturally together.
+ 
+\textbf{xBD segmentation gap.} Although the mIoU improved to 0.4276, pixel level segmentation on the minority damage classes (Minor: 0.1595, Major: 0.2647, Destroyed: 0.3087) is still not at production quality. The embeddings do their job for fusion, but if you wanted standalone damage mapping, the improvements given in Section~\ref{sec:future} would be required.
+ 
+\subsection{Impact on Operations}
+ 
+You can run one forward pass through the fusion layer and get the whole operational picture: severity, priority level, disaster type, population impact, and resource needs. The system also features automatic disaster type detection (no one has to manually select the hazard) and a XAI framework that produces both visual heatmaps and plain-language briefings, and is built for the kind of time pressure that disaster response actually involves.
 
 % ======================== VIII. CONCLUSION ========================
 \section{Conclusion}
