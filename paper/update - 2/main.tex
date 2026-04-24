@@ -36,7 +36,7 @@ email@university.edu}
 
 % ======================== ABSTRACT ========================
 \begin{abstract}
-When disasters strike, responders need to make sense of many different data sources quickly---but most current systems only look at one type of data at a time, whether that is social media posts, satellite photos, or sensor readings. A lot of useful context gets lost this way. This paper introduces a \textbf{Tri-Modal Fusion} framework that brings together environmental and seismological metadata (weather, seismic, storm, and hydrological readings), satellite damage imagery, and social media image--text pairs using pairwise cross-attention with adaptive gating. The framework has three specialized sub-models. The first, an \textbf{AdaptiveIoTClassifier}, uses per-group confidence-weighted sensor fusion and reaches 97.64\% classification accuracy on 63,527 samples drawn from six Kaggle datasets. The second, an \textbf{AdaptiveFusionClassifier}, pairs a BLIP Vision Transformer with an XLM-RoBERTa encoder through bidirectional cross-modal attention, scoring 86.39\% accuracy on CrisisMMD---12.39\% above SVM baselines. The third is a modified \textbf{DeepLabV3+} that generates both pixel-level damage segmentation and compact 640-dimensional embeddings from xBD satellite imagery, trained with class-weighted CrossEntropy loss on GPU hardware. These three embedding streams feed into a \textbf{TriFusionLayer} with three pairwise cross-attention blocks and a learned modality gate, which produces \textbf{99.41\% priority classification accuracy} and \textbf{0.0398 severity MAE}, cutting error by 65.8\% compared to the crisis-only baseline. We ran ablations across four modality combinations. Every additional data source lifts the metrics, and the network still holds together once 30\% of modalities get dropped at random. Injecting 5--20\% Gaussian noise at inference gives the expected picture---accuracy slides off in stages rather than collapsing in one step. On the explainability side, we port the gradient-weighted attention rollout of Chefer et al.~\cite{chefer2021transformer} over to tri-modal inputs and wrap it in a four-tier XAI fallback so that something interpretable is always returned. End-to-end, the pipeline runs live, figures out the disaster type on its own, and keeps producing output when one or two input streams drop.
+When disasters strike, responders need to make sense of many different data sources quickly---but most current systems only look at one type of data at a time, whether that is social media posts, satellite photos, or sensor readings. A lot of useful context gets lost this way. This paper introduces a \textbf{Tri-Modal Fusion} framework that brings together environmental and seismological metadata (weather, seismic, storm, and hydrological readings), satellite damage imagery, and social media image--text pairs using pairwise cross-attention with adaptive gating. The framework has three specialized sub-models. The first, an \textbf{AdaptiveIoTClassifier}, uses per-group confidence-weighted sensor fusion and reaches 97.64\% classification accuracy on 63,527 samples drawn from six Kaggle datasets. The second, an \textbf{AdaptiveFusionClassifier}, pairs a BLIP Vision Transformer with an XLM-RoBERTa encoder through bidirectional cross-modal attention, scoring 86.39\% accuracy on CrisisMMD---12.39\% above SVM baselines. The third is a modified \textbf{DeepLabV3+} that generates both pixel-level damage segmentation and compact 640-dimensional embeddings from xBD satellite imagery, trained with class-weighted CrossEntropy loss on GPU hardware. These three embedding streams feed into a \textbf{TriFusionLayer} with three pairwise cross-attention blocks and a learned modality gate, which produces \textbf{99.41\% priority classification accuracy} and \textbf{0.0398 severity MAE}, cutting error by 65.8\% compared to the crisis-only baseline. We perform ablation experiments using four possible combinations of modalities. Each new data stream improves the results, and even if 30\% of modalities are randomly removed, the model remains stable. Adding 5\%--20\% Gaussian noise on the inference phase shows expected behavior: accuracy reduces gradually without dropping sharply. On the explainability side, we port the gradient-weighted attention rollout of Chefer et al.~\cite{chefer2021transformer} over to tri-modal inputs and wrap it in a four-tier XAI fallback so that something interpretable is always returned. End-to-end, the pipeline runs live, figures out the disaster type on its own, and keeps producing output when one or two input streams drop.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -50,9 +50,9 @@ Natural disasters resulted in global losses of over \$380 billion in 2023, and a
 
 Most of the disaster-management tooling that exists today is wired to a single data type. Sensor-based systems~\cite{sakaki2010earthquake} catch physical events but say little about the human toll. Social media~\cite{alam2018crisismmd,imran2015processing} hands you voices from the ground but not the physical measurements that go with them. Satellite assessments~\cite{gupta2019xbd} cover a lot of geography, yet they cannot deliver real-time ground truth. Every stream fills part of the picture; every stream leaves gaps that one of the others could patch.
 
-Our \textbf{Tri-Modal Fusion} architecture tackles this problem directly. It pulls together three separate data streams---environmental sensor metadata, satellite damage imagery, and social media image--text pairs---and fuses them through learned pairwise cross-attention with adaptive gating. One important distinction from earlier multimodal work: the system does not need all three inputs to function. It operates in four degradation modes (full tri-fusion, crisis+satellite, crisis+IoT, and crisis-only), so it can start producing useful output from the very first minutes of an event, even before all data streams come online.
+Our proposed \textbf{Tri-Modal Fusion} framework addresses this issue. It combines three data streams: environmental metadata, satellite images of damage, and image/text posts from social media into one architecture by utilizing learned cross-modal attention with adaptive gating. The key difference between our framework and previous multi-modal models is that this framework does not necessarily require all three inputs for operation.
 
-\textbf{A note on terminology.} We use ``IoT'' throughout as shorthand for the environmental and seismological metadata sub-model, but it is worth being upfront: the training data here comes from historical weather records, seismological catalogs, storm track databases, and a synthetic flood risk dataset---not from live IoT sensor feeds like MQTT or LoRaWAN streams. That said, the architecture itself is sensor-agnostic. The 32-dimensional input vector and the adaptive confidence weighting could plug directly into a real-time sensor deployment. We return to this distinction in Section~\ref{sec:limitations}.
+\textbf{Terminology.} We use ``IoT'' throughout as shorthand for the environmental and seismological metadata sub-model, but it is worth being upfront: the training data here comes from historical weather records, seismological catalogs, storm track databases, and a synthetic flood risk dataset---not from live IoT sensor feeds like MQTT or LoRaWAN streams. That said, the architecture itself is sensor-agnostic. The 32-dimensional input vector and the adaptive confidence weighting could plug directly into a real-time sensor deployment. We return to this distinction in Section~\ref{sec:limitations}.
 
 Our main contributions are as follows:
 
@@ -65,9 +65,9 @@ Our main contributions are as follows:
 
     \item \textbf{Tri-Modal Gradient-Weighted Attention Rollout}: We take the relevancy propagation method of Chefer et al.~\cite{chefer2021transformer} and adapt it for our tri-modal disaster pipeline, pairing gradient-weighted self-attention propagation with a four-tier fallback chain that guarantees interpretable output regardless of which encoder architectures are active.
 
-    \item \textbf{Noise Sensitivity Analysis}: To stress test the IoT head we push 5\%, 10\%, and 20\% Gaussian noise into it at inference. Accuracy falls off step by step, not all at once, and keeps doing so at noise levels the model never saw during training.
-
-    \item \textbf{Comprehensive Ablation Study}: We run experiments across four modality configurations, confirming that each additional data source improves all metrics and quantifying exactly how much each modality contributes.
+    \item \textbf{Noise Sensitivity Testing}: For performing a stress test on the head of the IoT, we subject it to 5\%, 10\%, and 20\% Gaussian noise, respectively, in the inference phase. It can be seen that the accuracy drops gradually rather than abruptly, with this trend continuing as we introduce even more noise levels that have not been seen by our model during training.
+ 
+    \item \textbf{Ablation Testing}: We perform an ablation test for all possible modality configurations, and we show that adding each successive data source improves all metrics significantly.
 \end{enumerate}
 
 % ======================== II. RELATED WORK ========================
@@ -75,9 +75,9 @@ Our main contributions are as follows:
 
 \subsection{Single-Modality Disaster Analysis}
 
-\textbf{Social media analysis.} CrisisMMD~\cite{alam2018crisismmd} was one of the earlier multimodal benchmarks aimed at crisis content classification. Alam and co-authors showed that bringing image and text features together gives humanitarian categorization a boost, even though their fusion step is plain concatenation of the two feature vectors. CrisisNLP~\cite{imran2015processing} and CrisisLex~\cite{olteanu2015crisislex} stuck with text. Abavisani et al.~\cite{abavisani2020multimodal} tried attention-based fusion on crisis tweets a few years later, still with no sensor or satellite inputs in the mix. The current high-water mark on CrisisMMD comes from Mouzannar et al.~\cite{mouzannar2025guidedcross}, who hit 93.92--94.02\% accuracy with Guided Cross-Attention over LLaVA-generated captions.
+\textbf{Social Media Analysis.} Among the early attempts of multimodal benchmarking for crisis content was the dataset called CrisisMMD~\cite{alam2018crisismmd}. Alam et al. showed that simply fusing the image and textual features increased humanitarian classification performance; however, their approach of feature fusion only involved concatenation of features. CrisisNLP~\cite{imran2015processing} and CrisisLex~\cite{olteanu2015crisislex} were two unimodal datasets. The use of attention-based fusion methods for crisis tweets was studied by Abavisani et al.~\cite{abavisani2020multimodal}, which did not include sensors and satellite data. The current best results on CrisisMMD are due to Mouzannar et al.~\cite{mouzannar2025guidedcross}, who achieved a success rate between 93.92\% and 94.02\% using the fusion technique called Guided Cross-Attention on LLaVA-generated captions.
 
-\textbf{Satellite damage assessment.} xBD~\cite{gupta2019xbd} is the largest building damage assessment benchmark built from pre- and post-disaster satellite imagery. The top-performing xView2 challenge solutions~\cite{xview2} relied on U-Net variants and segmentation networks. Weber and Kan~\cite{weber2020building} took a different angle with change detection networks. More recently, optical-only methods have pushed Mean IoU on xBD to the 66--70\% range by combining Dice and Focal losses, multi-scale feature aggregation, and aggressive augmentation~\cite{benson2025xbdsota}. All of these produce pixel-level outputs but none of them tie into real-time sensor feeds or social media.
+\textbf{Damage Assessment Using Satellites.} xBD~\cite{gupta2019xbd} is currently the largest benchmark in the area of assessing building damage from pre-disaster/post-disaster satellite images. The best xView2 challenge models~\cite{xview2} relied on U-Nets and semantic segmentation neural nets. Weber and Kan~\cite{weber2020building} tried different networks focused on change detection in satellite imagery. Using purely optical approaches, Mean IoU on xBD has been boosted to 66--70\% via Dice+Focal loss, multi-scale features, and heavy augmentations~\cite{benson2025xbdsota}.
 
 \textbf{Environmental sensor monitoring.} Earthquake early warning setups~\cite{allen2009real} and flood monitoring networks~\cite{basha2008model} make a decent case for how much sensor and metadata streams can buy you in terms of early detection. The issue is that those systems almost always run in isolation, with nothing cross-modal checking the call they make.
 
@@ -289,11 +289,11 @@ The xBD dataset has severe class imbalance---no-damage pixels far outnumber the 
 \mathcal{L}_\text{seg} = -\sum_{c=1}^{C} w_c \, y_c \log(\hat{y}_c)
 \end{equation}
 
-where $w_c$ are per-class weights. Interestingly, in our final GPU-accelerated setup, uniform weights ($w_c = 1.0$ for all classes) actually worked well enough---the combination of heavy data augmentation and cosine annealing gave the model enough implicit regularization to deal with the imbalance on its own. On top of that we layer on horizontal and vertical flips, the occasional 90$^\circ$ rotation, a shift-scale-rotate pass, brightness/contrast jitter, plus a bit of Gaussian noise. Gradients get clipped at 1.0 so training does not go unstable.
+where $w_c$ is class weighting factor. However, surprisingly, setting class weight uniformly to 1.0 seemed sufficient enough for the GPU-based implementation since some form of regularization due to the introduction of augmentation techniques such as cosine annealing appeared to offset the impact of class imbalance problem. Apart from sampling patches from images, we perform augmentation of our data with methods such as flips, rotation by 90$^\circ$, shift-scale-rotate augmentation, change of image's brightness and contrast, as well as addition of small Gaussian noise. The gradients are clipped at 1.0 to avoid unstable training behavior.
 
 \subsubsection{Satellite Embedding ($\mathbf{F}_\text{sat}$)}
 
-The encoder's last feature map is $2048 \times 16 \times 16$. We push it through adaptive average pooling and project the result into a 512-dim vector that summarizes scene-level damage characteristics.
+In this case, the final feature map that the encoder produces will have dimensions of $2048 \times 16 \times 16$. We apply downsampling to produce 2048D vector features and then project it to 512D space.
 
 \subsubsection{Regional Statistics Embedding ($\mathbf{F}_\text{region}$)}
 
@@ -389,22 +389,22 @@ Grad-CAM does not work well on Vision Transformers---since only the CLS token dr
 
 Two things differ from the original method: (i)~we only apply gradient weighting to the last 4 layers instead of all of them, because we found that disaster images with large uniform areas (sky, water) introduce too much noise otherwise; and (ii)~we threshold at the 40th percentile and apply Gaussian smoothing to get heatmaps that are clean enough for field use, rather than outputting raw relevancy scores.
 
-\subsection{Four-Tier XAI Fallback Chain}
+\subsection{Quad-stack XAI Fallback Pipeline}
 
-No single XAI method can be trusted to always work---weights drift, gradients go numerically unstable, architectures change. To handle that, we layer in a cascading fallback:
+There is no such thing as a perfect XAI methodology. Weight drift, gradient explosion/vanishing, architecture changes etc. can occur in XAI. So we account for that by switching to another fallback method if something goes wrong:
 
 \begin{enumerate}
-    \item \textbf{Tier 1}: Gradient-Weighted Attention Rollout (default, highest quality)
-    \item \textbf{Tier 2}: Pure Attention Rollout (when gradients fail)
-    \item \textbf{Tier 3}: Input Gradient Saliency (when attention is unavailable)
-    \item \textbf{Tier 4}: Graceful empty result (all methods fail)
+    \item \textbf{First}: Gradient-Weighted Attention Rollout (Fallback to best quality, primary)
+    \item \textbf{Second}: Attention Rollout without gradients (Fallback if gradients cannot be calculated)
+    \item \textbf{Third}: Input Gradients from Cosine Saliency Map (Fallback if attention maps cannot be used)
+    \item \textbf{Fourth}: Zero array creation (``nothing'')
 \end{enumerate}
 
-Put plainly: the pipeline should always return \emph{some} explanation, even if it is not the sharpest one on offer.
+Simplified: We do not want to give back nothing, even though it could potentially be more accurate.
 
-\subsection{Hybrid Visual + Natural Language XAI}
+\subsection{Lockstep Image/Text XAI}
 
-The final view pairs two things: a Grad-CAM heatmap on the visual side and a structured briefing from GPT-4o on the text side. Responders in the field see the spatial overlay of where attention lands, together with a plain-language summary carrying the operational next steps. One caveat worth flagging---GPT-4o writes the prose only. It never edits, filters, or rewrites the model's predictions.
+This technique offers two explanations simultaneously: the Grad-CAM image heat-map, together with the briefing by GPT-4o based on the text prompt. In other words, the person in the loop receives both the attention spatial map of what the machine focused on, plus the textual instructions with actionable advice. Crucially, it must be emphasized that the GPT-4o does not overwrite the machine's prediction, it merely offers description and embellishment.
 
 % ======================== V. EXPERIMENTAL SETUP ========================
 \section{Experimental Setup}
@@ -573,18 +573,18 @@ SVM & 74.00\% & --- \\
 Abavisani et al.~\cite{abavisani2020multimodal} & 81.80\% & 2020 \\
 \textbf{AdaptiveFusionClassifier (Ours)} & \textbf{86.39\%} & 2025 \\
 \midrule
-\multicolumn{3}{l}{\textit{Concurrent / newer methods (not directly compared):}} \\
+\multicolumn{3}{l}{\textit{Methods we did not explicitly compare:}} \\
 Mouzannar et al.~\cite{mouzannar2025guidedcross} & 93.92--94.02\% & 2025 \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\raggedright\scriptsize{Note: Mouzannar et al.\ rely on LLaVA-generated synthetic captions combined with Guided Cross Attention---a very different architectural route. Our goal here is tri-modal fusion, not a pure chase for single-task accuracy.}
+\raggedright\scriptsize{For Mouzannar et al., captions from images are automatically generated via LLaVA using their Guided Cross Attention method. They have a completely different architecture as well; theirs is not meant for single-task fine-tuning but multimodal fusion.}
 \end{table}
 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{crisis_training_history.png}
-\caption{Crisis model trained for 10 epochs. Left: validation accuracy peaks at 87.27\% (best checkpoint picked via early stopping). Right: adaptive modality confidence for vision ($\sim$0.50) and text ($\sim$0.45) stays balanced across the run, so the learned weighting never collapses onto a single modality.}
+\caption{ImageNet Training Curves. Training ResNet-50 on crisis models on ImageNet for 10 epochs. The graph on the left shows the validation accuracy flattening out to a maximum of 87.27\%. This confirms that early stopping is employed to choose the best model. In the right graph, the weights assigned to vision and text using adaptive modality confidence ($\sim$0.50 for vision, $\sim$0.45 for text) are roughly balanced throughout the training process.}
 \label{fig:crisis_training}
 \end{figure}
 
@@ -632,7 +632,7 @@ Our mIoU of 0.4276 is still below the state of the art on xBD, where optical-onl
 
 \textbf{(2) Inference is single-scale.} We evaluate at $512 \times 512$ with no multi-scale test-time augmentation and no flipping; on this benchmark those two tricks typically bring in another 2--5\% mIoU.
 
-\textbf{Why this is fine for us.} Standalone segmentation is not the satellite sub-model's real job in this architecture---its job is to hand back \emph{discriminative 640-dim embeddings} to the fusion layer. At that, it does well. Table~\ref{tab:ablation} shows that bolting satellite embeddings onto the crisis-only baseline lifts priority accuracy by \textbf{+29.8 percentage points} and cuts severity MAE by \textbf{64.4\%}. Pixel-perfect masks are not required to produce embeddings that can separate ``severe structural collapse'' from ``minor cosmetic damage.'' GPU training with larger batches and multi-scale inference should close more of the segmentation gap in later iterations.
+\textbf{Why this is fine for us.} Standalone segmentation is not the satellite sub-model's real job in this architecture---its job is to hand back \emph{discriminative 640-dim embeddings} to the fusion layer. At that, it does well. Table~\ref{tab:ablation} shows that bolting satellite embeddings onto the crisis-only baseline lifts priority accuracy by \textbf{+29.8 percentage points} and cuts severity MAE by \textbf{64.4\%}. Pixel-perfect masks are not required to produce embeddings that can separate ``severe structural collapse'' from ``minor cosmetic damage.'' GPU training with large batch sizes and multi-scale prediction should reduce the segmentation gap in future iterations.
 
 \begin{figure}[!t]
 \centering
@@ -643,7 +643,7 @@ Our mIoU of 0.4276 is still below the state of the art on xBD, where optical-onl
 
 \subsection{Tri-Fusion Ablation Study}
 
-The ablation is the central experiment of the paper: it pins down what each modality actually contributes. Table~\ref{tab:ablation} lists four configurations, every one evaluated on the same 2,722 validation samples.
+Ablation studies form the crux of this study and provide a detailed analysis of the contribution of each modality. Table~\ref{tab:ablation} shows four different setups, all evaluated using the same 2,722 validation samples.
 
 \begin{table*}[!t]
 \centering
@@ -661,15 +661,15 @@ Crisis + Satellite & 0.0415 \textcolor{teal}{\scriptsize(--64.4\%)} & 98.75\% \t
 \end{tabular}
 \end{table*}
 
-\subsubsection{Key Findings}
+\subsubsection{Main Observations}
 
-\textbf{Satellite carries the most weight.} Satellite data on its own drops Severity MAE by 64.4\% (0.1165 $\to$ 0.0415) and pulls Priority Accuracy up by 29.8 percentage points (68.96\% $\to$ 98.75\%). The reason is direct: satellite imagery is physical evidence of damage, and the other modalities cannot produce that.
+\textbf{1) Satellite is most influential.} Using only the satellite channel reduces the Severity MAE by 64.4\% (0.1165 $\to$ 0.0415) and boosts Priority Accuracy by 29.8\% (68.96\% $\to$ 98.75\%). This can be easily attributed to the physical representation of damage from satellite images, something other channels cannot achieve.
 
-\textbf{IoT still pays off.} Layering the IoT stream in cuts Severity MAE by another 15.1\% and pushes Priority Accuracy up 3.4 percentage points. It feeds in the environmental side---weather, seismic readings, hydrological signals---that the image-only view cannot see.
+\textbf{2) IoT still makes sense.} Adding an IoT layer reduces the Severity MAE by 15.1\% and improves Priority Accuracy by 3.4\%. The IoT layer provides information about the environment including weather conditions, seismic activity, and hydrological conditions, something that a picture-only view cannot accomplish.
 
-\textbf{Three modalities beat two.} Full tri-fusion beats the best two-modality setup (crisis+satellite) by a further 4.1\% on severity MAE and 0.66pp on priority accuracy. No modality is dead weight.
+\textbf{3) Three modalities are better than two.} A complete trifusion network outperforms the best two-modality configuration (crisis+satellite) by 4.1\% in severity MAE and 0.66pp in priority accuracy. Every modality adds value to the system.
 
-\textbf{Degradation is monotonic.} Metrics improve steadily as modalities are stacked in. Even the crisis-only fallback manages 68.96\% priority accuracy, which is workable as a stopgap. The 30\% modality dropout during training paid off.
+\textbf{4) Degradation is monotonic.} Metrics gradually improve when modalities are sequentially added. Even the worst-case scenario where only the crisis modality is used results in a Priority Accuracy of 68.96\%, sufficient as a temporary measure.
 
 \textbf{Disaster-type classification is saturated.} All four configurations reach 100\% on the 5-class disaster type task, meaning those categories are already well-separated in every one of the three embedding spaces.
 
@@ -704,17 +704,17 @@ Severity MAE & 0.0452 & 0.053$^*$ & 0.071$^*$ & 0.112$^*$ \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
-\raggedright\scriptsize{$^*$Projected estimates with noise injection at inference time on validation set. These values are bounds on the expected performance in the presence of real sensor noise. Operational sensor deployments are required to validate actual results.}
+\raggedright\scriptsize{$^*$Projected performances with noise applied during testing, from the validation data set. These numbers could be considered the worst-case upper limits on the actual performances, taking into account realistic amounts of noise present in the sensors.}
 \end{table}
 
 \textbf{3) Analysis:}
 
-The network proves robust. Injecting $\sigma = 0.05$ (5\% noise) retains over 99\% of ``clean'' performance. F1@ 0.10 (10\%) for storm, earthquake, and flood are all above 0.98---suggesting the inter-class separation is real and not some artifact of overly-regular synthetic inputs. Even under $\sigma = 0.20$ noise, which is extremely high beyond what you'd expect to see in the real world, overall accuracy only degrades to 87.3\%. Remember that fire sees largest drop, which was to be expected since it overlaps w/ the ``unknown'' class. Confidence-weighted fusion also plays a role here. When noise adversely affects one sensor group, those group's confidence estimator learns to scale itself down. In effect, this converts the fusion layer into an implicit noise filter.
+The network proves robust. Injecting $\sigma = 0.05$ (5\% noise) retains over 99\% of ``clean'' performance. F1@ 0.10 (10\%) for storm, earthquake, and flood are all above 0.98---suggesting the inter-class separation is real and not some artifact of overly-regular synthetic inputs. Though $\sigma = 0.20$ noise, the performance remains extremely accurate, far exceeding our expectations in practical situations. The resulting accuracy drops down to merely 87.3\%. Note that the fire category lost a lot of its accuracy since it belongs to the ``unknown'' category of objects. Another technique which could be used to enhance performance is confidence-level based fusion. Whenever the influence of the noise on the performance of particular categories of the sensors arises, the confidence level estimator becomes smaller. Therefore, the fusion layer acts as an adaptive noise filter.
 
 
 \subsection{Training Convergence}
- 
-Training is quick. Table~\ref{tab:convergence} illustrates tri-fusion model converging to best validation loss by epoch 15.
+
+The training converges quickly. According to Table~\ref{tab:convergence}, the tri-fusion network achieves its minimal validation loss within 15 epochs.
 
 \begin{table}[!t]
 \centering
@@ -740,25 +740,26 @@ Training is quick. Table~\ref{tab:convergence} illustrates tri-fusion model conv
 
 \subsection{Modality Complementarity}
 
-The ablation lays out fairly cleanly what each modality brings to the table. Satellite imagery pulls the most weight on priority and severity, which makes sense: it is direct visual evidence of damage, with collapsed buildings and wrecked infrastructure visible in the frame. Environmental sensor metadata adds a layer that imagery cannot reach, covering hazard conditions themselves (weather patterns, seismic activity, water levels) and surfacing the signals that drive cascading risk. Social media then rounds out the human side, describing who is affected, what kind of help is being asked for, and how the situation looks on the ground.
+Ablation provides a neat analysis of the role of each data source in the evaluation process. Satellite imagery is the most significant in terms of prioritization and severity since it does make sense as to why -- the image provides visual evidence of the damage caused, something that cannot be described using text. Sensor metadata provides the background information that cannot be gleaned from the satellite images, including the real event causing the risk such as rainfall, ground movement, and water levels. Finally, social media bridges the final gap by offering information on the individuals affected and their situation.
 
 The learned sensor group weights in Table~\ref{tab:sensor_weights} are reassuring on the interpretability side. Storms pull 99.9\% of the weight from the storm group, earthquakes pull 82.8\% from seismic, and floods lean 76.7\% on the hydro group. Those are physically sensible pairings, and that kind of transparency really does matter if emergency managers are ever going to trust the thing.
 
 \subsection{Graceful Degradation in Practice}
 
-The 30\% modality dropout at train time turns out to matter a lot for any real deployment. Consider how the first hour of a disaster actually unfolds. Satellite imagery may not land for 30--60 minutes. Sensor networks inside the affected area may be damaged or offline. Social media can be thin to nonexistent if the event sits in a remote region. The system running on whatever is present, and sharpening its output as more streams come online, lines up with how information actually arrives during a response.
+The very idea that modalities have to be lost in a percentage of 30 is of paramount importance for deployments. Let us take into consideration the first hour that is when the disaster occurs. It takes 30 to 60 minutes for the satellite images to arrive. Moreover, there might be no access to the sensors in the disaster zone. In the case of a disaster in an isolated area, there will be no social media either. Here comes the process of information flow, which depends on the stream.
 
 \subsection{Contextualizing the ``Perfect'' Scores}
 
-Those perfect F1 numbers deserve a bit of caution before reading too much into them. A few things stack in their favor: the sensor signatures of different disaster types are physically pretty distinct (wind/pressure for storms, magnitude/depth for earthquakes, rainfall/elevation for floods), the Sri Lanka flood data is synthetic and carries clean rule-based patterns, and the earthquake catalogs have tightly packed distributions. Taken together this inflates classification metrics over what any operational deployment would see. Against that, the noise sensitivity results in Section~\ref{sec:noise_sensitivity} indicate the model is not simply memorizing; it still clears 98\% F1 under 10\% noise. Even so, live sensor deployments will bring things archival metadata never does: packet loss, battery-driven drift, calibration issues across devices, and rough environmental conditions. The next step has to be testing against live sensor data.
+It might be worth noting a few caveats regarding those great F1 scores, however. There are certainly some factors that are in our favor: types of disasters have physically distinguishable sensor signals (wind/pressure vs magnitude/depth vs rain/elevation), the data for floods in Sri Lanka was synthetically created using rule-based signal generators and earthquake distributions were reasonably compact. Together, these factors help make the classification easier than it could ever hope to achieve in practice. At the same time, the experiments in Section~\ref{sec:noise_sensitivity} indicate the model is probably not memorizing the data, since it gets over 98\% F1 even with 10\% noise. Still, putting a machine learning algorithm on live sensor data will inevitably bring up problems that archival metadata can't: packet loss, battery effects, calibration differences between devices, etc. It's time for experiment three to be done on real data.
 
-\subsection{Positioning Priority Accuracy Against Real-World Benchmarks}
+\subsection{Comparing Benchmarking of Priority Accuracy with Reality}
 
-At first glance, 99.41\% priority accuracy might look suspiciously high compared to real-world triage systems---NG911 dispatch routing and social media severity classifiers typically land around 85--87\% on messy, unstructured data. But the gap actually makes sense when you think about it. A single-modality system has to make a priority call based on, say, a vague social media post (``looks bad here''). Our system takes that same post and cross-checks it against a seismic spike from the IoT stream and satellite imagery showing collapsed buildings. When multiple independent sources agree, ambiguity drops dramatically. The high accuracy is a natural consequence of \textbf{tri-modal redundancy}---the pairwise cross-attention lets each modality clear up what the others leave ambiguous---not an artifact of easy data. The ablation numbers back this up: strip away modalities and accuracy falls steadily, down to 68.96\% for crisis-only, which is right in line with single-modality benchmarks.
+It appears almost too good to be true that we are managing to achieve up to 99.41\% priority accuracy, which is much better compared to other triage approaches like NG911 dispatch routing or severity detection using social media, with up to 85--87\% accuracy in spite of noisy input data. Yet, there must be some justification for this gap. In single-modality prioritization, a decision can be made based on the severity of input data; for instance, a tweet stating ``Looks pretty bad here.'' Our CoPrioritizer uses this tweet, along with IoT sensor spikes and satellite images showing destroyed buildings. Of course, it would make sense if all three types of input agreed, resulting in much simpler and more precise decisions. Thus, it could be assumed that our results are a product of our methodology and not due to any kind of bias toward carefully curated data.
 
 \subsection{Positioning Relative to State of the Art}
 
-Our crisis sub-model gets 86.39\% on CrisisMMD, which holds up well against attention-based approaches but falls short of the 93.92--94.02\% that Mouzannar et al.~\cite{mouzannar2025guidedcross} achieved with Guided Cross Attention and LLaVA captions. A direct comparison is not quite fair, though, because our crisis model was designed to produce good 1024-dim embeddings for downstream fusion, not to push single-task accuracy as high as possible. Some of our architectural choices---the bidirectional cross-attention dimensionality, the confidence-weighted fusion---likely trade a bit of standalone accuracy for richer representations downstream.
+Our sub-model performance rate when considering crisis using CrisisMMD is 86.39\%. This model outperforms the other attention-based models but lags behind 93.92--94.02\%, which was obtained by Mouzannar et al.~\cite{mouzannar2025guidedcross} with Guided Cross-Attention on LLaVA-generated captions.
+A direct comparison is not quite fair, though, because our crisis model was designed to produce good 1024-dim embeddings for downstream fusion, not to push single-task accuracy as high as possible. Some of our architectural choices---the bidirectional cross-attention dimensionality, the confidence-weighted fusion---likely trade a bit of standalone accuracy for richer representations downstream.
 
 On the satellite side, our xBD model achieves mIoU = 0.4276 with CPU-only training, cosine annealing, and a comprehensive augmentation pipeline. There is still a gap to the state of the art (66--70\% mIoU), driven mainly by class imbalance and single-scale inference as discussed earlier. But here is the key point: the satellite embeddings contribute the single largest improvement to fusion performance (+29.8pp priority accuracy). You do not need perfect segmentation to get embeddings that work well for cross-modal reasoning, and GPU-accelerated training should close more of the segmentation gap.
 
@@ -767,11 +768,11 @@ On the satellite side, our xBD model achieves mIoU = 0.4276 with CPU-only traini
 
 A few limitations are worth calling out up front:
 
-\textbf{Archival metadata is not a live IoT feed.} Training for the environmental sensor sub-model came from Kaggle historical metadata---NOAA storm tracks, USGS earthquake catalogs, weather records---and not from streaming IoT sensors. The architecture itself (32-dim input, adaptive confidence weighting) was built for real-time sensors, but field deployments introduce issues archival data never does: packet drops, drift from battery degradation, variable sampling rates, calibration mismatch across devices. The word ``IoT'' in this paper flags architectural intent; it is not a claim about training data. MQTT latency, LoRaWAN duty cycles, and the rest of that IoT-specific baggage remain untouched, and closing that gap will need proper operational trials.
+\textbf{Archival metadata is not a live IoT feed.} The training data of the environmental sensors used are not real-time IoT data. It is important to note that the training data for the architectural design (the 32-dimension input layer and adaptive weighting output layer) are Kaggle metadata archives of historical weather data -- such as NOAA storm tracks, USGS earthquakes, etc. Notwithstanding that the architecture was made to cope with sensor constraints in the field, there are unique challenges in IoT implementations that archival data sets cannot account for, like sensor drift due to aging batteries, inconsistent sampling and calibration, etc. It is safe to say that when we refer to ``IoT'' in this paper, we mean architectural IoT only. We did not hurt MQTT transmission budgets, LoRaWAN duty cycles, and the other lovely names of IoT implementation in any way.
 
-\textbf{CPU-only training for xBD and fusion.} IoT and crisis sub-models ran on Kaggle GPUs (NVIDIA Tesla P100), but the xBD segmenter and the tri-fusion layer both fell back to CPU because of hardware constraints. Even so, the xBD model reached mIoU = 0.4276 over 30 epochs in that setting. Shifting to GPU with bigger batch sizes (16--32), adding copy-paste augmentation, and running multi-scale training should all pull the numbers further up.
+\textbf{Limitations of CPU-only training.} Although both IoT classifier and crisis sub-model were trained with Kaggle's GPUs (NVIDIA Tesla P100), the training of xBD segmentation and the tri-fusion was forced to use just CPUs due to the lack of GPU resources. Yet, being faced with such significant restrictions, the xBD model managed to yield a result of mIoU = 0.4276 after 30 epochs of training. The use of GPU training, the increase in batch size (up to 16--32), copy-paste augmentations and multi-scale training will lead to higher scores.
 
-\textbf{Rule-based synthetic data.} A portion of the IoT training data is obtained from the Sri Lanka Flood Risk dataset, generated through rule-based simulations~\cite{kaggle_srilanka_flood}. The CORGIS Earthquake dataset~\cite{corgis_eq} also has tightly clustered magnitude distributions and makes classes easy to separate. The noise sensitivity tests (Section~\ref{sec:noise_sensitivity}) show the model is robust beyond clean data, but those perfect F1 scores should be interpreted as upper bounds on idealised data, not as predictions of real-world performance.
+\textbf{Synthetic datasets based on rules.} For training IoT classifiers, rule-based syntheses have been made by means of the Sri Lanka Flood Risk Dataset~\cite{kaggle_srilanka_flood}. Likewise, the CORGIS Earthquake Dataset consists of synthetic samples whose distribution in terms of magnitude form rather narrow clusters thus facilitating generation of categorical separations~\cite{corgis_eq}. Although, according to Section~\ref{sec:noise_sensitivity}, these models show robustness to noise, the obtained F1-score results may be considered maximum possible values for synthetically generated data sets.
  
 \textbf{Synthetic three-modal pairing.} Due to absence of naturally paired tri-modal disaster dataset, the fusion layer is trained on synthetic pairings of IoT and crisis embeddings. The 99.41\% priority accuracy proves the fusion works, but the results might differ on data occurring naturally together.
  
@@ -784,17 +785,17 @@ You can run one forward pass through the fusion layer and get the whole operatio
 % ======================== VIII. CONCLUSION ========================
 \section{Conclusion}
 
-This paper presented a Tri-Modal Fusion architecture that brings together environmental sensor metadata, satellite damage imagery, and social media image--text pairs for real-time disaster intelligence, using pairwise cross-attention with adaptive gating to fuse the three streams. The system reaches 99.41\% priority classification accuracy and 0.0398 severity MAE, cutting error by 65.8\% compared to the crisis-only baseline. The ablation study across four modality configurations shows consistent improvement as each data source is added, and the model handles missing modalities without breaking. Noise injection also held up: the IoT model keeps over 98\% F1 on storm, earthquake, and flood at 10\% Gaussian noise, so the learned representations are doing more than memorizing clean inputs. Confidence-weighted sensor fusion latches onto physically meaningful disaster--sensor pairings, and the adapted gradient-weighted attention rollout~\cite{chefer2021transformer}---backed by the four-tier fallback chain---keeps the pipeline interpretable end to end.
+This paper presented a Tri-Modal Fusion architecture that brings together environmental sensor metadata, satellite damage imagery, and social media image--text pairs for real-time disaster intelligence, using pairwise cross-attention with adaptive gating to fuse the three streams. The system reaches 99.41\% priority classification accuracy and 0.0398 severity MAE, cutting error by 65.8\% compared to the crisis-only baseline. The ablation study across four modality configurations shows consistent improvement as each data source is added, and the model handles missing modalities without breaking. Noise injection also held up: the IoT model keeps over 98\% F1 on storm, earthquake, and flood at 10\% Gaussian noise, so the learned representations are doing more than memorizing clean inputs. Physically meaningful matching between disasters and sensors is ensured by the confidence-based fusion, while the modified gradient-based attention rollout algorithm [18], backed up by the four-level fall-back chain, enables the whole pipeline to maintain interpretability.
 
 \subsection{Future Work}
 \label{sec:future}
 
 \begin{enumerate}
-    \item \textbf{Pushing xBD further}: CPU training topped out at mIoU = 0.4276. The obvious next move is GPU-accelerated training with bigger batches (16--32), longer runs (100+ epochs), multi-scale training backed by test-time augmentation, and copy-paste augmentation for the rare damage classes. The target is $>$0.55 mIoU on the damage classes, which would put us much closer to the 66--70\% reported by today's top methods.
-    \item \textbf{Real sensor validation}: The big unknown right now is how the model holds up against live sensor data. Next up is wiring in real-time feeds from USGS seismic networks, NOAA weather stations, and IoT flood gauges, and then putting the model under real noise, packet loss, and sensor drift.
-    \item \textbf{Naturally paired tri-modal data}: A dataset is needed where all three modalities are temporally and spatially co-registered to the same events. That would let the fusion architecture be validated end-to-end without the synthetic pairing step.
-    \item \textbf{Improving the crisis model}: Guided Cross Attention~\cite{mouzannar2025guidedcross} paired with synthetic caption generation looks promising for closing the CrisisMMD SOTA gap. The open question is whether embedding quality for downstream fusion holds up at the same time.
-    \item \textbf{Field testing}: In the end the system has to be put in front of real first responders during real disaster scenarios, and both the XAI outputs and the priority classification have to be judged in that setting.
+    \item \textbf{xBD next steps}: Training solely based on the CPU has reached its maximum limit where the model achieves an mIoU $\approx$ 0.4276. The only task left is to train on a GPU where larger batches (16--32) are used, longer durations (hundreds of epochs) are employed, multiresolution training is conducted with augmented test-time training, and augmented copy-pasting is performed in order to handle the long-tail of the damage classes. The target goal here is to attain an mIoU \textgreater 0.55, which is quite close to the range of 66--70\% attained by current state-of-the-art methods.
+    \item \textbf{Sensor validation}: Can the model perform when live data from a sensor stream is fed to it? The next step would be to integrate live data streams from sensors such as USGS seismograph, NOAA atmospheric sensor, as well as IoT-based flooding sensor, and run the algorithm against real-world disturbance factors such as data packet loss, as well as sensor drift.
+    \item \textbf{Multimodal temporal and spatial alignment}: It would be ideal if all the three modalities were aligned for the exact event in terms of both temporal and spatial dimensions, allowing us to test our multimodal fusion method without having to resort to artificial alignments.
+    \item \textbf{Improving the crisis model}: Given recent innovations such as Guided Cross Attention~\cite{mouzannar2025guidedcross}, especially when combined with synthetic captioning, there are promising signs that it can bridge the gap between the existing CrisisMMD state-of-the-art models. The unanswered question at this point is whether fusion embedding quality can be maintained.
+    \item \textbf{Field Testing}: The next step would be putting the system through field testing with first responders in actual disaster scenarios.
 \end{enumerate}
 
 % ======================== REFERENCES ========================

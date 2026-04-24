@@ -74,57 +74,54 @@
 \citation{kaggle_srilanka_flood}
 \@writefile{toc}{\contentsline {section}{\numberline {IV}Explainability Framework}{5}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Gradient-Weighted Attention Rollout}{5}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Four-Tier XAI Fallback Chain}{5}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Hybrid Visual + Natural Language XAI}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Quad-stack XAI Fallback Pipeline}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Lockstep Image/Text XAI}{5}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {V}Experimental Setup}{5}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Datasets}{5}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Feature-to-Dimension Mapping}{5}{}\protected@file@percent }
 \newlabel{sec:feature_mapping}{{\mbox  {V-B}}{5}{}{subsection.5.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-C}}Implementation Details}{5}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {VI}Experimental Results}{5}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-A}}IoT Model Performance}{5}{}\protected@file@percent }
 \citation{abavisani2020multimodal}
 \citation{mouzannar2025guidedcross}
+\citation{benson2025xbdsota}
 \@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces MAPPING OF KAGGLE DATASET FEATURES ONTO THE 32-DIMENSIONAL UNIFIED SENSOR VECTOR}}{6}{}\protected@file@percent }
 \newlabel{tab:feature_mapping}{{II}{6}{}{table.2}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Training Configuration for Each Sub-Model}}{6}{}\protected@file@percent }
 \newlabel{tab:training_config}{{III}{6}{}{table.3}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces IoT Model Per-Class Classification Results}}{6}{}\protected@file@percent }
 \newlabel{tab:iot_per_class}{{IV}{6}{}{table.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-B}}Crisis Model Performance}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Experimental Results}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-A}}IoT Model Performance}{6}{}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Weights of learned sensor groups for each disaster class. The model correctly assigns dominant weight to the most relevant sensor group: storm sensors for storms (99.9\%), seismic for earthquakes (82.8\%), hydro for floods (76.7\%) and weather for fires (75.8\%).}}{6}{}\protected@file@percent }
 \newlabel{fig:sensor_weights}{{2}{6}{}{figure.2}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Confusion matrix for the IoT model with raw counts on the left and normalised counts on the right Storm, earthquake, and flood come through with clean separation; most of the remaining errors are in the fire / unknown pair.}}{6}{}\protected@file@percent }
 \newlabel{fig:iot_cm}{{3}{6}{}{figure.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces ROC curves for each class of the AdaptiveIoTClassifier. Macro-average AUC = 0.9962 Storm, earthquake, flood impact AUC = 1.0.}}{6}{}\protected@file@percent }
-\newlabel{fig:iot_roc}{{4}{6}{}{figure.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-B}}Crisis Model Performance}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-C}}xBD Satellite Model Performance}{6}{}\protected@file@percent }
 \citation{benson2025xbdsota}
-\citation{benson2025xbdsota}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces ROC curves for each class of the AdaptiveIoTClassifier. Macro-average AUC = 0.9962 Storm, earthquake, flood impact AUC = 1.0.}}{7}{}\protected@file@percent }
+\newlabel{fig:iot_roc}{{4}{7}{}{figure.4}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Results of severity regression. Left side image: predicted vs true severity ($R^2 = 0.745$). Right side image: residuals with MAE = 0.0452 and RMSE = 0.1188.}}{7}{}\protected@file@percent }
 \newlabel{fig:iot_severity}{{5}{7}{}{figure.5}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {V}{\ignorespaces Crisis Model Per-Class Test Results}}{7}{}\protected@file@percent }
 \newlabel{tab:crisis_per_class}{{V}{7}{}{table.5}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Comparison with Baseline and State-of-the-Art Models on CrisisMMD Humanitarian Task}}{7}{}\protected@file@percent }
 \newlabel{tab:baseline_comparison}{{VI}{7}{}{table.6}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Crisis model trained for 10 epochs. Left: validation accuracy peaks at 87.27\% (best checkpoint picked via early stopping). Right: adaptive modality confidence for vision ($\sim $0.50) and text ($\sim $0.45) stays balanced across the run, so the learned weighting never collapses onto a single modality.}}{7}{}\protected@file@percent }
-\newlabel{fig:crisis_training}{{6}{7}{}{figure.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-C}}xBD Satellite Model Performance}{7}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {VI-C}1}Analysis of xBD Performance}{7}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces ImageNet Training Curves. Training ResNet-50 on crisis models on ImageNet for 10 epochs. The graph on the left shows the validation accuracy flattening out to a maximum of 87.27\%. This confirms that early stopping is employed to choose the best model. In the right graph, the weights assigned to vision and text using adaptive modality confidence ($\sim $0.50 for vision, $\sim $0.45 for text) are roughly balanced throughout the training process.}}{7}{}\protected@file@percent }
+\newlabel{fig:crisis_training}{{6}{7}{}{figure.6}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Crisis model confusion matrix on test set. The dominant class (not\_humanitarian, 504 samples) achieves 87.3\% diagonal accuracy. Low support for affected\_individuals (9 samples) explains its lower F1.}}{7}{}\protected@file@percent }
 \newlabel{fig:crisis_cm}{{7}{7}{}{figure.7}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Per-class ROC curves for the crisis model. All classes achieve AUC $\geq $ 0.96, with infrastructure damage and rescue efforts reaching 0.98.}}{7}{}\protected@file@percent }
-\newlabel{fig:crisis_roc}{{8}{7}{}{figure.8}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {VII}{\ignorespaces xBD Satellite Model Per-Class Results (Best Checkpoint, Epoch 27)}}{7}{}\protected@file@percent }
 \newlabel{tab:xbd_results}{{VII}{7}{}{table.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Per-class ROC curves for the crisis model. All classes achieve AUC $\geq $ 0.96, with infrastructure damage and rescue efforts reaching 0.98.}}{8}{}\protected@file@percent }
+\newlabel{fig:crisis_roc}{{8}{8}{}{figure.8}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces xBD model training history (CPU, 30 epochs). Top-left: train/val loss convergence. Top-right: validation Mean IoU reaching best at epoch 27 (0.4276). Bottom-left: Mean F1 progression. Bottom-right: cosine annealing learning rate schedule.}}{8}{}\protected@file@percent }
 \newlabel{fig:xbd_training}{{9}{8}{}{figure.9}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-D}}Tri-Fusion Ablation Study}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {VI-D}1}Key Findings}{8}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {VI-D}1}Main Observations}{8}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-E}}Noise Sensitivity}{8}{}\protected@file@percent }
 \newlabel{sec:noise_sensitivity}{{\mbox  {VI-E}}{8}{}{subsection.6.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-F}}Training Convergence}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {VII}Discussion}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-A}}Modality Complementarity}{8}{}\protected@file@percent }
 \citation{mouzannar2025guidedcross}
 \@writefile{lot}{\contentsline {table}{\numberline {VIII}{\ignorespaces MODALITY CONTRIBUTION TO TRI-FUSION PERFORMANCE: ABLATION STUDY (2,722 VALIDATION SAMPLES)}}{9}{}\protected@file@percent }
 \newlabel{tab:ablation}{{VIII}{9}{}{table.8}{}}
@@ -132,20 +129,22 @@
 \newlabel{tab:noise_sensitivity}{{IX}{9}{}{table.9}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {X}{\ignorespaces Tri-Fusion Training Convergence}}{9}{}\protected@file@percent }
 \newlabel{tab:convergence}{{X}{9}{}{table.10}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VI-F}}Training Convergence}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VII}Discussion}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-A}}Modality Complementarity}{9}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-B}}Graceful Degradation in Practice}{9}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-C}}Contextualizing the ``Perfect'' Scores}{9}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-D}}Positioning Priority Accuracy Against Real-World Benchmarks}{9}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-E}}Positioning Relative to State of the Art}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-D}}Comparing Benchmarking of Priority Accuracy with Reality}{9}{}\protected@file@percent }
 \citation{kaggle_srilanka_flood}
 \citation{corgis_eq}
-\citation{chefer2021transformer}
-\citation{mouzannar2025guidedcross}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-E}}Positioning Relative to State of the Art}{10}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-F}}Limitations}{10}{}\protected@file@percent }
 \newlabel{sec:limitations}{{\mbox  {VII-F}}{10}{}{subsection.7.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VII-G}}Impact on Operations}{10}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {VIII}Conclusion}{10}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VIII-A}}Future Work}{10}{}\protected@file@percent }
 \newlabel{sec:future}{{\mbox  {VIII-A}}{10}{}{subsection.8.1}{}}
+\citation{mouzannar2025guidedcross}
 \bibcite{cred2023}{1}
 \bibcite{sakaki2010earthquake}{2}
 \bibcite{alam2018crisismmd}{3}
