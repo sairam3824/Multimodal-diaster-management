@@ -735,7 +735,7 @@ Temperature: 0.3 (low = factual, consistent)
 Max words:   ~220
 ```
 
-Requires `OPENAI_API_KEY` environment variable. If not set, the briefing is silently skipped.
+Requires `OPENAI_API_KEY` environment variable. If not set, the briefing is silently skipped. OpenAI calls are optional and run in the background with a timeout (`OPENAI_TIMEOUT_SECONDS`, default `15`), so analysis continues even when the key, API, or network is unavailable.
 
 ---
 

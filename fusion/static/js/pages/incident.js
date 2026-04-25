@@ -1,4 +1,5 @@
-import { getActiveRecord, getPendingJob, getRecordById, getRecordByJobId, setActiveRecord } from "/static/js/store.js";
+import { fetchAnalysisJob } from "/static/js/api.js";
+import { getActiveRecord, getPendingJob, getRecordById, getRecordByJobId, saveAnalysisRecord, setActiveRecord } from "/static/js/store.js";
 import { formatDateTime, formatPercent, titleize } from "/static/js/utils.js";
 
 function alertClass(level){
@@ -75,7 +76,96 @@ function renderBarRows(containerId, rows){
   `).join("");
 }
 
+function escapeHtml(value){
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatBriefingText(value){
+  const escaped = escapeHtml(value || "No responder briefing available.");
+  return escaped
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n/g, "<br>");
+}
+
+function briefingStatusLabel(status, summary){
+  if(summary) return "Ready";
+  if(status === "pending" || status === "running") return "Generating";
+  if(status === "skipped") return "Skipped";
+  return "Unavailable";
+}
+
+function renderBriefing(result){
+  const xai = result.xai || {};
+  const summary = xai.summary || "";
+  const status = xai.summary_status || (summary ? "completed" : "skipped");
+  const statusEl = document.getElementById("incident-briefing-status");
+  const briefingEl = document.getElementById("incident-briefing");
+
+  if(statusEl){
+    statusEl.textContent = briefingStatusLabel(status, summary);
+    statusEl.dataset.status = summary ? "completed" : status;
+  }
+
+  if(briefingEl){
+    briefingEl.innerHTML = summary
+      ? formatBriefingText(summary)
+      : formatBriefingText(status === "pending" || status === "running"
+        ? "Responder briefing is generating in the background."
+        : "No responder briefing available.");
+  }
+}
+
+function initBriefingToggle(){
+  const toggle = document.getElementById("incident-briefing-toggle");
+  const panel = document.getElementById("incident-briefing-panel");
+  if(!toggle || !panel) return;
+
+  toggle.addEventListener("click", () => {
+    const isOpen = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!isOpen));
+    panel.hidden = isOpen;
+  });
+}
+
+function startBriefingPolling(record){
+  if(!record.sourceJobId) return;
+
+  const initialStatus = record.result?.xai?.summary_status;
+  if(record.result?.xai?.summary || !["pending", "running"].includes(initialStatus)){
+    return;
+  }
+
+  let attempts = 0;
+  const timer = window.setInterval(async () => {
+    attempts += 1;
+    try{
+      const job = await fetchAnalysisJob(record.sourceJobId);
+      if(job.result){
+        renderBriefing(job.result);
+        saveAnalysisRecord(record.input, job.result, { jobId: record.sourceJobId });
+        const nextStatus = job.result.xai?.summary_status;
+        if(job.result.xai?.summary || !["pending", "running"].includes(nextStatus)){
+          window.clearInterval(timer);
+        }
+      }
+    }catch(err){
+      console.warn(`[incident] Briefing poll failed: ${err.message}`);
+    }
+
+    if(attempts >= 40){
+      window.clearInterval(timer);
+    }
+  }, 3000);
+}
+
 export function initIncidentPage(){
+  initBriefingToggle();
+
   const params = new URLSearchParams(window.location.search);
   const pendingJobId = params.get("job");
   const record = resolveRecord();
@@ -85,7 +175,7 @@ export function initIncidentPage(){
     const pendingJob = pendingJobId ? getPendingJob(pendingJobId) : null;
     empty.style.display = "block";
     if(pendingJob){
-      empty.textContent = "Analysis is running in the background. You can keep browsing the platform and this incident page will update automatically when the saved result is ready.";
+      empty.textContent = "Incident prediction is running in the background. This page will open the predicted incident as soon as the tri-fusion result is ready.";
       window.addEventListener("fusion:job-saved", event => {
         if(event.detail.jobId === pendingJobId){
           window.location.replace(`/incident?id=${event.detail.record.id}`);
@@ -113,7 +203,8 @@ export function initIncidentPage(){
   document.getElementById("incident-priority").textContent = titleize(result.priority || "low");
   document.getElementById("incident-updated").textContent = formatDateTime(record.createdAt);
   document.getElementById("incident-severity").textContent = formatPercent(result.fused_severity || 0);
-  document.getElementById("incident-briefing").innerHTML = (result.xai?.summary || "No responder briefing available.").replace(/\n/g, "<br>");
+  renderBriefing(result);
+  startBriefingPolling(record);
 
   // Crisis Grad-CAM
   const crisisGradcam = result.xai?.crisis_gradcam_b64 || result.xai?.gradcam_b64;

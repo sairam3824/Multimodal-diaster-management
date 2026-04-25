@@ -100,8 +100,18 @@
 
             <!-- Responder briefing card -->
             <div class="surface pad stack">
-              <div class="metric-label">Responder briefing</div>
-              <div class="surface-soft">
+              <button
+                class="briefing-toggle"
+                id="incident-briefing-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="incident-briefing-panel"
+              >
+                <span class="briefing-toggle__arrow" aria-hidden="true"></span>
+                <span class="metric-label">Responder briefing</span>
+                <span class="briefing-status" id="incident-briefing-status">Generating</span>
+              </button>
+              <div class="surface-soft briefing-panel" id="incident-briefing-panel" hidden>
                 <div class="inc-briefing-text" id="incident-briefing"></div>
               </div>
             </div>

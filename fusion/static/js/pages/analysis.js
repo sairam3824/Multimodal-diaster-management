@@ -255,7 +255,7 @@ export function initAnalysisPage(){
 
     try{
       setLoading(true);
-      document.getElementById("analysis-submit-label").textContent = "Scheduling tri-fusion analysis";
+      document.getElementById("analysis-submit-label").textContent = "Scheduling incident prediction";
       const job = await createAnalysisJob(formData);
       const pendingJob = addPendingJob({
         jobId: job.job_id,
@@ -274,7 +274,7 @@ export function initAnalysisPage(){
         id: pendingJob.jobId,
         result: {
           alert_level: "Queued",
-          summary: "The tri-fusion analysis is running in the background. Results will include crisis, IoT, and satellite modalities as available.",
+          summary: "The incident prediction is running in the background. The responder briefing will generate separately after the prediction is ready.",
           disaster_type: "pending",
           priority: "pending",
           fused_severity: 0

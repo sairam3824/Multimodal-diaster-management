@@ -38,15 +38,18 @@ from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-# Load .env manually — no external dependency needed
-_env_path = Path(__file__).parent.parent / ".env"
-if _env_path.exists():
-    for _line in _env_path.read_text().splitlines():
-        _line = _line.strip()
-        if _line and not _line.startswith("#") and "=" in _line:
-            _k, _v = _line.split("=", 1)
-            os.environ.setdefault(_k.strip(), _v.strip())
+# Load local env files manually — no external dependency needed.
+# .env.local intentionally wins over .env for machine-specific secrets.
+for _env_name in (".env", ".env.local"):
+    _env_path = Path(__file__).parent.parent / _env_name
+    if _env_path.exists():
+        for _line in _env_path.read_text().splitlines():
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ[_k.strip()] = _v.strip()
 
 from fusion.pipeline import DisasterPipeline, CRISIS_CLASSES
 from fusion.xai import GradCAMViT, generate_openai_summary
@@ -293,33 +296,6 @@ def _run_analysis_sync(
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
 
-    response_dict = {
-        "alert_level":    result.alert_level,
-        "disaster_type":  result.confirmed_type,
-        "priority":       result.priority,
-        "fused_severity": round(result.fused_severity, 4),
-        "iot": {
-            "type":          result.iot_disaster_type,
-            "fire_prob":     round(result.iot_fire_prob, 4),
-            "storm_cat":     round(result.iot_storm_cat, 4),
-            "eq_magnitude":  round(result.iot_eq_magnitude, 4),
-            "flood_risk":    round(result.iot_flood_risk, 4),
-            "casualty_risk": round(result.iot_casualty_risk, 4),
-            "sensor_weights": {k: round(v, 4) for k, v in result.iot_sensor_weights.items()},
-        },
-        "crisis": {
-            "category":      result.crisis_category,
-            "confidence":    round(result.crisis_confidence, 4),
-            "vision_weight": round(result.vision_weight, 4),
-            "text_weight":   round(result.text_weight, 4),
-        },
-        "fusion": {
-            "population_impact": round(result.population_impact, 4),
-            "resource_needs":    {k: round(v, 4) for k, v in result.resource_needs.items()},
-        },
-    }
-    xai_summary = generate_openai_summary(response_dict, state.get("openai_key", ""))
-
     return {
         "alert_level":      result.alert_level,
         "summary":          result.summary,
@@ -358,9 +334,41 @@ def _run_analysis_sync(
         "xai": {
             "crisis_gradcam_b64":    gradcam_b64,
             "satellite_gradcam_b64": sat_gradcam_b64,
-            "summary":               xai_summary,
+            "summary":               "",
+            "summary_status":        "pending" if state.get("openai_key") else "skipped",
         },
         "inference_ms": elapsed_ms,
+    }
+
+
+def _build_openai_briefing_payload(result: Dict[str, Any]) -> Dict[str, Any]:
+    iot = result.get("iot") or {}
+    crisis = result.get("crisis") or {}
+    fusion = result.get("fusion") or {}
+    return {
+        "alert_level":    result.get("alert_level"),
+        "disaster_type":  result.get("disaster_type"),
+        "priority":       result.get("priority"),
+        "fused_severity": result.get("fused_severity", 0),
+        "iot": {
+            "type":           iot.get("type"),
+            "fire_prob":      iot.get("fire_prob", 0),
+            "storm_cat":      iot.get("storm_cat", 0),
+            "eq_magnitude":   iot.get("eq_magnitude", 0),
+            "flood_risk":     iot.get("flood_risk", 0),
+            "casualty_risk":  iot.get("casualty_risk", 0),
+            "sensor_weights": iot.get("sensor_weights", {}),
+        },
+        "crisis": {
+            "category":      crisis.get("category"),
+            "confidence":    crisis.get("confidence", 0),
+            "vision_weight": crisis.get("vision_weight", 0),
+            "text_weight":   crisis.get("text_weight", 0),
+        },
+        "fusion": {
+            "population_impact": fusion.get("population_impact", 0),
+            "resource_needs":    fusion.get("resource_needs", {}),
+        },
     }
 
 
@@ -390,6 +398,39 @@ def _update_job(job_id: str, **updates):
         _persist_jobs_to_disk()
 
 
+def _update_job_result(job_id: str, result: Dict[str, Any]) -> None:
+    jobs = state["jobs"]
+    if job_id in jobs:
+        jobs[job_id]["result"] = result
+        jobs[job_id]["updated_at"] = time.time()
+        _persist_jobs_to_disk()
+
+
+async def _run_openai_briefing_job(job_id: str) -> None:
+    job = state.get("jobs", {}).get(job_id)
+    result = (job or {}).get("result")
+    if not result:
+        return
+
+    xai = result.setdefault("xai", {})
+    if not state.get("openai_key"):
+        xai["summary_status"] = "skipped"
+        _update_job_result(job_id, result)
+        return
+
+    xai["summary_status"] = "running"
+    _update_job_result(job_id, result)
+
+    summary = await asyncio.to_thread(
+        generate_openai_summary,
+        _build_openai_briefing_payload(result),
+        state.get("openai_key", ""),
+    )
+    xai["summary"] = summary
+    xai["summary_status"] = "completed" if summary else "skipped"
+    _update_job_result(job_id, result)
+
+
 async def _run_background_job(
     *,
     job_id: str,
@@ -408,6 +449,7 @@ async def _run_background_job(
             satellite_image_path=satellite_image_path,
         )
         _update_job(job_id, status="completed", completed_at=time.time(), result=result)
+        asyncio.create_task(_run_openai_briefing_job(job_id))
     except Exception as e:
         _update_job(job_id, status="failed", error=str(e))
     finally:

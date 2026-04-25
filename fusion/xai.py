@@ -277,14 +277,25 @@ class GradCAMViT:
 # 2. OpenAI Natural Language Explanation
 # ─────────────────────────────────────────────
 
-def generate_openai_summary(result: dict, api_key: Optional[str] = None) -> str:
+def generate_openai_summary(
+    result: dict,
+    api_key: Optional[str] = None,
+    timeout_seconds: Optional[float] = None,
+) -> str:
     key = api_key or os.getenv("OPENAI_API_KEY", "")
     if not key or key == "your_key_here":
         return ""
 
+    if timeout_seconds is None:
+        try:
+            timeout_seconds = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "15"))
+        except ValueError:
+            timeout_seconds = 15.0
+    timeout_seconds = max(timeout_seconds, 0.1)
+
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=key)
+        client = OpenAI(api_key=key, timeout=timeout_seconds, max_retries=0)
 
         iot    = result.get("iot", {})
         crisis = result.get("crisis", {})
@@ -308,7 +319,7 @@ IoT Sensor Analysis:
   Earthquake     : M{iot.get('eq_magnitude', 0) * 9:.1f}
   Flood risk     : {iot.get('flood_risk', 0) * 100:.0f} / 100
   Casualty risk  : {iot.get('casualty_risk', 0):.1%}
-  Sensor weights : {iot.get('sensor_weights', {{}})}
+  Sensor weights : {iot.get('sensor_weights', {})}
 
 Social Media (Crisis Model):
   Category       : {crisis.get('category')}
@@ -342,5 +353,5 @@ Keep total response under 220 words. Use plain language — no jargon."""
         return response.choices[0].message.content.strip()
 
     except Exception as e:
-        print(f"[XAI] OpenAI error: {e}")
+        print(f"[XAI] OpenAI briefing skipped: {e}")
         return ""
