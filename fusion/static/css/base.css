@@ -254,6 +254,23 @@ textarea {
   gap: 22px;
 }
 
+.analysis-workspace {
+  display: block;
+}
+
+.analysis-evidence-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, .82fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.optional-label {
+  color: var(--muted);
+  font-size: .9em;
+  font-weight: 500;
+}
+
 .grid-three {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -904,6 +921,7 @@ textarea {
   .detail-grid,
   .grid-four,
   .grid-three,
+  .analysis-evidence-grid,
   .form-grid {
     grid-template-columns: 1fr;
   }

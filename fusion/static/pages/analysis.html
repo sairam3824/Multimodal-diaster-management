@@ -23,49 +23,49 @@
         </p>
       </section>
 
-      <section class="grid-two">
+      <section class="analysis-workspace">
         <div class="surface pad">
           <form id="analysis-form" class="stack">
-            <div class="field">
-              <label for="analysis-file">Image evidence</label>
-              <div class="media-stage" id="analysis-dropzone" tabindex="0" role="button" aria-label="Choose or drop image file">
-                <img id="analysis-preview" alt="Analysis preview"/>
-                <div class="hint" id="analysis-hint">
-                  <strong>Drop a field image or browse your files</strong>
-                  <p>Use JPG, PNG, or WEBP. The model will combine this image with the public report text.</p>
-                  <div class="hint-actions">
-                    <span class="file-chip">Choose file</span>
-                    <span class="hint-meta">Drag and drop is supported</span>
+            <div class="analysis-evidence-grid">
+              <div class="field">
+                <label for="analysis-file">Image evidence</label>
+                <div class="media-stage" id="analysis-dropzone" tabindex="0" role="button" aria-label="Choose or drop image file">
+                  <img id="analysis-preview" alt="Analysis preview"/>
+                  <div class="hint" id="analysis-hint">
+                    <strong>Drop a field image or browse your files</strong>
+                    <p>Use JPG, PNG, or WEBP. The model will combine this image with the public report text.</p>
+                    <div class="hint-actions">
+                      <span class="file-chip">Choose file</span>
+                      <span class="hint-meta">Drag and drop is supported</span>
+                    </div>
                   </div>
                 </div>
+                <input class="file-input" id="analysis-file" type="file" accept="image/*"/>
+                <small class="file-status" id="analysis-file-status">No image selected.</small>
               </div>
-              <input class="file-input" id="analysis-file" type="file" accept="image/*"/>
-              <small class="file-status" id="analysis-file-status">No image selected.</small>
+
+              <div class="field">
+                <label for="satellite-file">Satellite image <span class="optional-label">(optional)</span></label>
+                <div class="media-stage" id="satellite-dropzone" tabindex="0" role="button" aria-label="Choose or drop satellite image">
+                  <img id="satellite-preview" alt="Satellite preview"/>
+                  <div class="hint" id="satellite-hint">
+                    <strong>Drop a satellite image or browse</strong>
+                    <p>Use JPG or PNG. The xBD model extracts physical damage features.</p>
+                    <div class="hint-actions">
+                      <span class="file-chip">Choose file</span>
+                      <span class="hint-meta">Optional evidence</span>
+                    </div>
+                  </div>
+                </div>
+                <input class="file-input" id="satellite-file" type="file" accept="image/*"/>
+                <small class="file-status" id="satellite-file-status">No satellite image selected.</small>
+              </div>
             </div>
 
             <div class="field">
               <label for="tweet-input">Public report text</label>
               <textarea id="tweet-input" maxlength="560" placeholder="Paste the tweet, field note, or witness report here."></textarea>
               <small id="analysis-char-count">0 / 560</small>
-            </div>
-
-            <div class="subsection">
-              <h3>Satellite image <span style="color:var(--muted); font-weight:400; font-size:0.85em;">(optional)</span></h3>
-              <p style="color:var(--muted); font-size:0.85em; margin-bottom:12px;">
-                Upload a post-disaster satellite image for physical damage assessment via the xBD model.
-              </p>
-              <div class="media-stage media-stage--small" id="satellite-dropzone" tabindex="0" role="button" aria-label="Choose or drop satellite image">
-                <img id="satellite-preview" alt="Satellite preview"/>
-                <div class="hint" id="satellite-hint">
-                  <strong>Drop a satellite image or browse</strong>
-                  <p>Use JPG or PNG. The xBD model extracts damage features (512x512 recommended).</p>
-                  <div class="hint-actions">
-                    <span class="file-chip">Choose file</span>
-                  </div>
-                </div>
-              </div>
-              <input class="file-input" id="satellite-file" type="file" accept="image/*"/>
-              <small class="file-status" id="satellite-file-status">No satellite image selected.</small>
             </div>
 
             <div class="subsection">
@@ -107,46 +107,6 @@
               <span id="analysis-submit-label">Run unified analysis</span>
             </button>
           </form>
-        </div>
-
-        <div class="surface pad stack">
-          <div class="section-heading">
-            <div>
-              <h2>Latest run</h2>
-              <p>After analysis finishes, use these links to continue the workflow.</p>
-            </div>
-          </div>
-
-          <div class="result-banner" id="analysis-result" style="display:none;">
-            <h3 id="analysis-result-title">Analysis complete</h3>
-            <p id="analysis-result-summary"></p>
-          </div>
-
-          <div class="grid-three">
-            <div class="metric-card">
-              <div class="metric-label">Hazard</div>
-              <div class="metric-value" id="analysis-result-type">Pending</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-label">Priority</div>
-              <div class="metric-value" id="analysis-result-priority">Pending</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-label">Severity</div>
-              <div class="metric-value" id="analysis-result-severity">Pending</div>
-            </div>
-          </div>
-
-          <div class="metric-card" id="analysis-modalities-card" style="display:none;">
-            <div class="metric-label">Active modalities</div>
-            <div class="metric-note" id="analysis-result-modalities"></div>
-          </div>
-
-          <div class="stack">
-            <a class="button secondary" id="analysis-detail-link" href="/incident">Open incident details</a>
-            <a class="button secondary" id="analysis-iot-link" href="/iot-monitor">Open IoT monitor</a>
-            <a class="button ghost" id="analysis-reports-link" href="/reports">Open reports</a>
-          </div>
         </div>
       </section>
     </main>

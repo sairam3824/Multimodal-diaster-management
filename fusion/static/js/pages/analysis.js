@@ -1,7 +1,5 @@
 import { createAnalysisJob } from "/static/js/api.js";
 import { addPendingJob } from "/static/js/store.js";
-import { formatPercent, titleize } from "/static/js/utils.js";
-
 const FIELD_MAP = {
   lat: "s-lat",
   lon: "s-lon",
@@ -118,18 +116,6 @@ function getDroppedImage(dataTransfer){
   }
 
   return null;
-}
-
-function renderResult(record){
-  document.getElementById("analysis-result").style.display = "block";
-  document.getElementById("analysis-result-title").textContent = `${record.result.alert_level} alert`;
-  document.getElementById("analysis-result-summary").textContent = record.result.summary || "Analysis completed.";
-  document.getElementById("analysis-result-type").textContent = titleize(record.result.disaster_type || "unknown");
-  document.getElementById("analysis-result-priority").textContent = titleize(record.result.priority || "low");
-  document.getElementById("analysis-result-severity").textContent = formatPercent(record.result.fused_severity || 0);
-  document.getElementById("analysis-detail-link").href = `/incident?id=${record.id}`;
-  document.getElementById("analysis-iot-link").href = `/iot-monitor?id=${record.id}`;
-  document.getElementById("analysis-reports-link").href = "/reports";
 }
 
 function setupDropzone(dropzoneEl, fileInputEl, onFileSelected){
@@ -270,16 +256,6 @@ export function initAnalysisPage(){
         }
       });
 
-      renderResult({
-        id: pendingJob.jobId,
-        result: {
-          alert_level: "Queued",
-          summary: "The incident prediction is running in the background. The responder briefing will generate separately after the prediction is ready.",
-          disaster_type: "pending",
-          priority: "pending",
-          fused_severity: 0
-        }
-      });
       document.getElementById("analysis-submit-label").textContent = "Opening incident details";
       window.location.href = `/incident?job=${job.job_id}`;
     }catch(error){
