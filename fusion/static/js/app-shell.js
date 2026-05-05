@@ -9,12 +9,36 @@ const NAV_ITEMS = [
   { key: "reports", label: "Reports", href: "/reports" }
 ];
 
+const STATIC_PAGE_HREFS = {
+  "/overview": "/static/pages/overview.html",
+  "/analysis": "/static/pages/analysis.html",
+  "/incident": "/static/pages/incident.html",
+  "/iot-monitor": "/static/pages/iot-monitor.html",
+  "/reports": "/static/pages/reports.html"
+};
+
+
+
+function isStaticPreview(){
+  return window.location.pathname.startsWith("/static/pages/");
+}
+
+function resolveHref(href){
+  if(!isStaticPreview()) return href;
+  const [path, query = ""] = href.split("?");
+  const staticPath = STATIC_PAGE_HREFS[path];
+  if(!staticPath) return href;
+  return query ? `${staticPath}?${query}` : staticPath;
+}
+
+
+
 function renderHeader(pageKey){
   const header = document.getElementById("app-header");
   if(!header) return;
 
   const nav = NAV_ITEMS.map(item => `
-    <a href="${item.href}" class="${item.key === pageKey ? "active" : ""}">${item.label}</a>
+    <a href="${resolveHref(item.href)}" class="${item.key === pageKey ? "active" : ""}">${item.label}</a>
   `).join("");
 
   header.innerHTML = `
@@ -33,6 +57,8 @@ function renderFooter(){
   const footer = document.getElementById("app-footer");
   if(!footer) return;
 
+
+
   footer.innerHTML = `
     <footer class="site-footer">
       <div class="site-footer__divider"></div>
@@ -48,21 +74,14 @@ function renderFooter(){
 
         <div class="site-footer__nav-group">
           <div class="site-footer__nav-label">Platform</div>
-          <a href="/overview" class="site-footer__nav-link">Overview</a>
-          <a href="/analysis" class="site-footer__nav-link">New Analysis</a>
-          <a href="/incident" class="site-footer__nav-link">Incident Details</a>
-          <a href="/iot-monitor" class="site-footer__nav-link">IoT Monitor</a>
-          <a href="/reports" class="site-footer__nav-link">Reports</a>
+          <a href="${resolveHref("/overview")}" class="site-footer__nav-link">Overview</a>
+          <a href="${resolveHref("/analysis")}" class="site-footer__nav-link">New Analysis</a>
+          <a href="${resolveHref("/incident")}" class="site-footer__nav-link">Incident Details</a>
+          <a href="${resolveHref("/iot-monitor")}" class="site-footer__nav-link">IoT Monitor</a>
+          <a href="${resolveHref("/reports")}" class="site-footer__nav-link">Reports</a>
         </div>
 
-        <div class="site-footer__nav-group">
-          <div class="site-footer__nav-label">Models</div>
-          <span class="site-footer__nav-item">Crisis CLIP Classifier</span>
-          <span class="site-footer__nav-item">xBD Satellite Segmenter</span>
-          <span class="site-footer__nav-item">IoT Tri-Fusion Layer</span>
-          <span class="site-footer__nav-item">Grad-CAM Explainability</span>
-          <span class="site-footer__nav-item">Resource Demand Estimator</span>
-        </div>
+
 
       </div>
 
@@ -73,6 +92,8 @@ function renderFooter(){
     </footer>
   `;
 }
+
+
 
 async function refreshHealth(){
   const pill = document.getElementById("pipeline-status");

@@ -288,9 +288,9 @@ def generate_openai_summary(
 
     if timeout_seconds is None:
         try:
-            timeout_seconds = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "15"))
+            timeout_seconds = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "60"))
         except ValueError:
-            timeout_seconds = 15.0
+            timeout_seconds = 60.0
     timeout_seconds = max(timeout_seconds, 0.1)
 
     try:

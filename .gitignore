@@ -90,3 +90,6 @@ crisis/Dataset.zip
 metrics.json
 !outputs-paper/iot/metrics.json
 .jobs_store.json
+
+# Project-specific: Humanized outputs
+.humanized/
